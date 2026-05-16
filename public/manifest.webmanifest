@@ -1,0 +1,22 @@
+{
+  "name": "LesaPay",
+  "short_name": "LesaPay",
+  "description": "家庭内報酬管理アプリ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fff4e6",
+  "theme_color": "#b6562d",
+  "icons": [
+    {
+      "src": "/icons/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/icons/apple-touch-icon.svg",
+      "sizes": "180x180",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

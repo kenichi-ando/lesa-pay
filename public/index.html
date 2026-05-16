@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#b6562d" />
+  <meta name="description" content="家族で使うかわいい報酬管理アプリ" />
+  <title>LesaPay 🐼 家庭内報酬管理</title>
+  <link rel="icon" type="image/svg+xml" href="icons/favicon.svg" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.svg" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="LesaPay" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- レッサーパンダ・マスコット (再利用するためSVGシンボル化) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <radialGradient id="cheek-grad" cx="0.5" cy="0.5" r="0.5">
+        <stop offset="0%" stop-color="#ffb3c1" stop-opacity="0.85"/>
+        <stop offset="100%" stop-color="#ffb3c1" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="face-grad" cx="0.5" cy="0.4" r="0.7">
+        <stop offset="0%" stop-color="#d77b46"/>
+        <stop offset="100%" stop-color="#b6562d"/>
+      </radialGradient>
+
+      <symbol id="lesser-panda" viewBox="0 0 120 120">
+        <!-- 耳 (内側がふんわり) -->
+        <ellipse cx="26" cy="34" rx="14" ry="15" fill="#b6562d"/>
+        <ellipse cx="94" cy="34" rx="14" ry="15" fill="#b6562d"/>
+        <ellipse cx="26" cy="36" rx="7" ry="8" fill="#ffd9c2"/>
+        <ellipse cx="94" cy="36" rx="7" ry="8" fill="#ffd9c2"/>
+        <!-- 顔 (まんまる) -->
+        <circle cx="60" cy="66" r="42" fill="url(#face-grad)"/>
+        <!-- 頬のふわふわ白 -->
+        <ellipse cx="28" cy="74" rx="17" ry="20" fill="#fff4e6"/>
+        <ellipse cx="92" cy="74" rx="17" ry="20" fill="#fff4e6"/>
+        <!-- 鼻筋 -->
+        <path d="M60,34 Q44,48 48,82 Q60,92 72,82 Q76,48 60,34 Z" fill="#fff4e6"/>
+        <!-- 目の周りの茶マスク (涙型に) -->
+        <path d="M28,58 Q40,50 50,60 Q47,72 36,72 Q26,68 28,58 Z" fill="#8a3f1f"/>
+        <path d="M92,58 Q80,50 70,60 Q73,72 84,72 Q94,68 92,58 Z" fill="#8a3f1f"/>
+        <!-- ぷっくり桜色チーク -->
+        <circle cx="22" cy="80" r="9" fill="url(#cheek-grad)"/>
+        <circle cx="98" cy="80" r="9" fill="url(#cheek-grad)"/>
+        <!-- キラキラ目 -->
+        <circle cx="42" cy="66" r="6" fill="#1a0e07"/>
+        <circle cx="78" cy="66" r="6" fill="#1a0e07"/>
+        <circle cx="44" cy="64" r="2" fill="#fff"/>
+        <circle cx="80" cy="64" r="2" fill="#fff"/>
+        <circle cx="40" cy="68.5" r="1" fill="#fff" opacity="0.7"/>
+        <circle cx="76" cy="68.5" r="1" fill="#fff" opacity="0.7"/>
+        <!-- 鼻 (ハート風) -->
+        <path d="M60,76 Q56,72 56,76 Q56,80 60,82 Q64,80 64,76 Q64,72 60,76 Z" fill="#1a0e07"/>
+        <!-- ニコ口 -->
+        <path d="M60,82 Q56,87 52,85 M60,82 Q64,87 68,85" stroke="#1a0e07" stroke-width="2" fill="none" stroke-linecap="round"/>
+      </symbol>
+
+      <!-- しっぽアイコン (もこもこ・縞模様) -->
+      <symbol id="panda-tail" viewBox="0 0 60 60">
+        <path d="M10,52 Q4,32 14,14 Q30,4 46,14 Q56,32 50,52"
+              stroke="#b6562d" stroke-width="12" fill="none" stroke-linecap="round"/>
+        <path d="M18,16 Q23,14 28,17" stroke="#3a2418" stroke-width="7" fill="none" stroke-linecap="round"/>
+        <path d="M34,14 Q40,14 44,19" stroke="#3a2418" stroke-width="7" fill="none" stroke-linecap="round"/>
+        <path d="M50,30 Q54,38 51,48" stroke="#3a2418" stroke-width="7" fill="none" stroke-linecap="round"/>
+      </symbol>
+
+      <!-- 笹の葉 (一枚) -->
+      <symbol id="bamboo-leaf" viewBox="0 0 40 40">
+        <path d="M5,35 Q15,15 35,5 Q26,26 5,35 Z" fill="#5a8a3a"/>
+        <path d="M5,35 Q15,15 35,5 Q26,26 5,35 Z" fill="#7caf4d" opacity="0.5" transform="translate(1 -1)"/>
+        <path d="M8,32 Q18,18 32,8" stroke="#3d6024" stroke-width="1" fill="none"/>
+      </symbol>
+
+      <!-- 足跡 -->
+      <symbol id="paw-print" viewBox="0 0 40 40">
+        <ellipse cx="20" cy="26" rx="9" ry="8" fill="#b6562d"/>
+        <ellipse cx="9"  cy="14" rx="3.5" ry="4.5" fill="#b6562d"/>
+        <ellipse cx="17" cy="9"  rx="3.5" ry="4.5" fill="#b6562d"/>
+        <ellipse cx="25" cy="9"  rx="3.5" ry="4.5" fill="#b6562d"/>
+        <ellipse cx="32" cy="14" rx="3.5" ry="4.5" fill="#b6562d"/>
+      </symbol>
+
+      <!-- 星 (キラキラ装飾用) -->
+      <symbol id="sparkle" viewBox="0 0 24 24">
+        <path d="M12,2 L13.5,9 L20,10 L13.5,11 L12,18 L10.5,11 L4,10 L10.5,9 Z" fill="#ffd96b"/>
+      </symbol>
+
+      <!-- ハート -->
+      <symbol id="heart" viewBox="0 0 24 24">
+        <path d="M12,20 C12,20 4,14.5 4,9 A4,4 0 0,1 12,7 A4,4 0 0,1 20,9 C20,14.5 12,20 12,20 Z" fill="#ff8eb0"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <header class="app-header">
+    <h1 class="app-title">
+      <svg class="app-logo" width="36" height="36"><use href="#lesser-panda"/></svg>
+      <span class="app-title-text">LesaPay</span>
+      <span id="user-label" class="user-label hidden"></span>
+    </h1>
+    <div class="header-actions">
+      <button id="settings-btn" class="parent-btn" aria-label="設定">
+        <span>⚙️</span>
+      </button>
+      <button id="parent-mode-btn" class="parent-btn" aria-label="保護者モード">
+        <span class="parent-icon">🔑</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <section class="balance-card">
+      <svg class="balance-mascot" width="48" height="48" aria-hidden="true"><use href="#lesser-panda"/></svg>
+      <div class="balance-label">いまのポイント</div>
+      <div class="balance-value">
+        <span id="balance-amount">---</span>
+        <span class="balance-unit">pt</span>
+      </div>
+      <div class="balance-meta" id="balance-meta">読み込み中…</div>
+    </section>
+
+    <section class="content-section">
+      <div class="section-header">
+        <h2 class="section-title"><span class="section-emoji">📋</span>がんばること</h2>
+        <button id="refresh-btn" class="icon-btn" aria-label="更新">🔄</button>
+      </div>
+      <div id="tasks-list" class="tasks-list">
+        <div class="empty-state">読み込み中…</div>
+      </div>
+    </section>
+
+    <section class="content-section">
+      <div class="section-header">
+        <h2 class="section-title"><span class="section-emoji">🐾</span>あしあと（履歴）</h2>
+      </div>
+      <div id="history-list" class="history-list">
+        <div class="empty-state">読み込み中…</div>
+      </div>
+    </section>
+
+    <div id="parent-panel" class="parent-panel hidden">
+      <div class="parent-panel-header">
+        <span class="parent-panel-title">🔓 保護者モード</span>
+        <button id="parent-logout-btn" class="text-btn">ロック</button>
+      </div>
+      <div class="parent-actions">
+        <button id="cashout-btn" class="action-btn cashout-btn">💴 換金する</button>
+      </div>
+    </div>
+  </main>
+
+  <div id="parent-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-content">
+      <svg class="modal-mascot" width="64" height="64"><use href="#lesser-panda"/></svg>
+      <h3 class="modal-title">保護者ログイン</h3>
+      <p class="modal-desc">パスワードを入力してください</p>
+      <input type="password" id="parent-password" class="modal-input" inputmode="numeric" autocomplete="off" />
+      <div class="modal-actions">
+        <button id="parent-cancel-btn" class="btn btn-secondary">キャンセル</button>
+        <button id="parent-submit-btn" class="btn btn-primary">ログイン</button>
+      </div>
+      <div id="parent-error" class="modal-error hidden"></div>
+    </div>
+  </div>
+
+  <div id="cashout-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-content">
+      <svg class="modal-mascot" width="64" height="64"><use href="#lesser-panda"/></svg>
+      <h3 class="modal-title">換金</h3>
+      <p class="modal-desc">換金するポイント数を入力してください</p>
+      <input type="number" id="cashout-amount" class="modal-input" inputmode="numeric" min="1" placeholder="500" />
+      <div class="modal-actions">
+        <button id="cashout-cancel-btn" class="btn btn-secondary">キャンセル</button>
+        <button id="cashout-submit-btn" class="btn btn-primary">換金実行</button>
+      </div>
+      <div id="cashout-error" class="modal-error hidden"></div>
+    </div>
+  </div>
+
+  <!-- 初回セットアップ / 設定リセット用モーダル -->
+  <div id="setup-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-content">
+      <svg class="modal-mascot" width="64" height="64"><use href="#lesser-panda"/></svg>
+      <h3 class="modal-title">はじめての設定</h3>
+      <p class="modal-desc">この端末で使う情報を設定します</p>
+
+      <label class="setup-label">GAS Web App URL</label>
+      <input type="text" id="setup-gas-url" class="modal-input" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" />
+
+      <label class="setup-label">シート名（「課題_◯◯」「履歴_◯◯」の◯◯部分）</label>
+      <input type="text" id="setup-user" class="modal-input" placeholder="ライト" autocomplete="off" />
+
+      <label class="setup-label">画面に表示する愛称（任意・空欄ならシート名と同じ）</label>
+      <input type="text" id="setup-label" class="modal-input" placeholder="ライト" autocomplete="off" />
+
+      <div class="modal-actions">
+        <button id="setup-cancel-btn" class="btn btn-secondary hidden">キャンセル</button>
+        <button id="setup-submit-btn" class="btn btn-primary">保存</button>
+      </div>
+      <div id="setup-error" class="modal-error hidden"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
