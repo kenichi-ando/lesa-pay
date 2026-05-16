@@ -145,12 +145,12 @@
     if (state.parentMode && t.status === '申請中') {
       actionHtml = `
         <div class="task-action-group">
-          <button class="task-btn approve-btn" data-task-id="${t.id}" data-action="approve">✓ 承認</button>
-          <button class="task-btn reject-btn" data-task-id="${t.id}" data-action="reject">✗ 却下</button>
+          <button class="task-btn approve-btn" data-task-id="${escape(t.id)}" data-action="approve">✓ 承認</button>
+          <button class="task-btn reject-btn" data-task-id="${escape(t.id)}" data-action="reject">✗ 却下</button>
         </div>
       `;
     } else if (t.status === '未完了') {
-      actionHtml = `<button class="task-btn" data-task-id="${t.id}" data-action="apply" ${expired ? 'disabled' : ''}>完了報告</button>`;
+      actionHtml = `<button class="task-btn" data-task-id="${escape(t.id)}" data-action="apply" ${expired ? 'disabled' : ''}>完了報告</button>`;
     } else if (t.status === '申請中') {
       actionHtml = '<span class="task-status-badge">申請中</span>';
     } else if (t.status === '承認済み') {
@@ -250,6 +250,9 @@
       store.set({ gasUrl: url, user, label: label || '' });
       state.user = user;
       state.label = label || user;
+      // H-4: 子を切り替えたら保護者モードはリセット
+      state.parentMode = false;
+      state.parentPassword = null;
       state.tasks = data.tasks || [];
       state.history = data.history || [];
       dataCache = { ts: Date.now(), tasks: state.tasks, history: state.history };

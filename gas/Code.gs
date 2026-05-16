@@ -81,6 +81,12 @@ function checkPassword(password) {
 
 function handleGetData(user) {
   const ss = getSpreadsheet();
+  // C-4: シートが存在しない user (タイポ等) はセットアップ時に弾く
+  const taskSheet = ss.getSheetByName(tasksSheetName(user));
+  const historySheet = ss.getSheetByName(historySheetName(user));
+  if (!taskSheet || !historySheet) {
+    throw new Error('シートが見つかりません: 課題_' + user + ' / 履歴_' + user);
+  }
   return {
     tasks:   readTasks(ss, tasksSheetName(user)),
     history: readHistory(ss, historySheetName(user))
@@ -148,13 +154,17 @@ function handleApproveTask(user, taskId, password) {
     for (let i = 0; i < values.length; i++) {
       if (String(values[i][0]) === String(taskId)) {
         const status = values[i][5];
+        // C-1: 申請中の課題のみ承認可能
         if (status === '承認済み') throw new Error('すでに承認済みです');
-        taskSheet.getRange(i + 2, 6).setValue('承認済み');
+        if (status !== '申請中') throw new Error('申請中の課題ではありません (現在: ' + (status || '未完了') + ')');
+        // H-1: 履歴追加→flush→ステータス更新の順で部分失敗を防ぐ
         const subject = String(values[i][1] || '');
         const title   = String(values[i][3] || '');
         const points  = Number(values[i][4]) || 0;
         const content = subject ? subject + ' ' + title : title;
         historySheet.appendRow([formatDateTime(new Date()), content, points]);
+        SpreadsheetApp.flush();
+        taskSheet.getRange(i + 2, 6).setValue('承認済み');
         return { taskId, points };
       }
     }
@@ -181,6 +191,11 @@ function handleRejectTask(user, taskId, password) {
     const values = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
     for (let i = 0; i < values.length; i++) {
       if (String(values[i][0]) === String(taskId)) {
+        const status = values[i][5];
+        // C-2: 承認済みの却下を防ぐ (履歴に既に記録されているため二重取り防止)
+        if (status === '承認済み') {
+          throw new Error('承認済みの課題は却下できません');
+        }
         sheet.getRange(i + 2, 6).setValue('未完了');
         return { taskId };
       }

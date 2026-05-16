@@ -69,7 +69,6 @@ body {
   justify-content: space-between;
   align-items: center;
   box-shadow: var(--shadow-md);
-  position: relative;
 }
 
 /* ヘッダー下端にしっぽの縞模様を再現 */
@@ -793,9 +792,6 @@ body {
 
 /* ヘッダーに小さな足跡を散らす */
 .app-header {
-  background:
-    linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
-  position: relative;
   overflow: hidden;
 }
 .app-header::before {
