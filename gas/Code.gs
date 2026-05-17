@@ -27,28 +27,31 @@ function isValidUser(user) {
   return typeof user === 'string' && user.length > 0 && user.length <= 50;
 }
 
+// アクション定義 (アクション名 → ハンドラ + メタ情報)
+//
+// requireUser    : true なら user パラメータ必須 (シート紐付き)
+// handler        : 引数は (req) のみ。req.user / req.taskId / req.password 等を取り出す
+//
+// 新しいアクションを追加するときは、ここに 1 行足してハンドラ関数を実装するだけ。
+// 認証・状態遷移バリデーションは各ハンドラ側で完結させる (クライアントを信頼しない)。
+const ACTIONS = {
+  getData:        { requireUser: true,  handler: (req) => handleGetData(req.user) },
+  applyTask:      { requireUser: true,  handler: (req) => handleApplyTask(req.user, req.taskId) },
+  verifyPassword: { requireUser: false, handler: (req) => handleVerifyPassword(req.password) },
+  approveTask:    { requireUser: true,  handler: (req) => handleApproveTask(req.user, req.taskId, req.password) },
+  rejectTask:     { requireUser: true,  handler: (req) => handleRejectTask(req.user, req.taskId, req.password) },
+  cashout:        { requireUser: true,  handler: (req) => handleCashout(req.user, req.amount, req.password) }
+};
+
 function doPost(e) {
   try {
     const req = JSON.parse(e.postData.contents);
-    const action = req.action;
-    const user = req.user;
-
-    // user 不要なアクション
-    const userlessActions = { verifyPassword: true };
-    if (!userlessActions[action] && !isValidUser(user)) {
-      throw new Error('不正な user パラメータ: ' + user);
+    const def = ACTIONS[req.action];
+    if (!def) throw new Error('未対応のアクション: ' + req.action);
+    if (def.requireUser && !isValidUser(req.user)) {
+      throw new Error('不正な user パラメータ: ' + req.user);
     }
-
-    let result;
-    switch (action) {
-      case 'getData':         result = handleGetData(user); break;
-      case 'applyTask':       result = handleApplyTask(user, req.taskId); break;
-      case 'verifyPassword':  result = handleVerifyPassword(req.password); break;
-      case 'approveTask':     result = handleApproveTask(user, req.taskId, req.password); break;
-      case 'rejectTask':      result = handleRejectTask(user, req.taskId, req.password); break;
-      case 'cashout':         result = handleCashout(user, req.amount, req.password); break;
-      default: throw new Error('未対応のアクション: ' + action);
-    }
+    const result = def.handler(req);
     return jsonOut({ ok: true, ...result });
   } catch (err) {
     return jsonOut({ ok: false, error: err.message || String(err) });
