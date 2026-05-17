@@ -6,3 +6,10 @@ firebase-debug.log
 
 # 難読化されたビルド成果物 (ローカル保管のみ)
 *.obfuscated.js
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
