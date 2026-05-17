@@ -226,9 +226,9 @@ function handleRejectTask(user, taskId, password) {
     for (let i = 0; i < values.length; i++) {
       if (String(values[i][0]) === String(taskId)) {
         const status = values[i][5];
-        // C-2: 承認済みの却下を防ぐ (履歴に既に記録されているため二重取り防止)
+        // C-2: 承認済みの差し戻しを防ぐ (履歴に既に記録されているため二重取り防止)
         if (status === '承認済み') {
-          throw new Error('承認済みの課題は却下できません');
+          throw new Error('承認済みの課題は訂正依頼できません');
         }
         sheet.getRange(i + 2, 6).setValue('未完了');
         return { taskId };

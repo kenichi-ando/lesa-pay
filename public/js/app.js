@@ -146,7 +146,7 @@
       actionHtml = `
         <div class="task-action-group">
           <button class="task-btn approve-btn" data-task-id="${escape(t.id)}" data-action="approve">✓ 承認</button>
-          <button class="task-btn reject-btn" data-task-id="${escape(t.id)}" data-action="reject">✗ 却下</button>
+          <button class="task-btn reject-btn" data-task-id="${escape(t.id)}" data-action="reject">✏️ 訂正依頼</button>
         </div>
       `;
     } else if (t.status === '未完了') {
@@ -349,11 +349,11 @@
     }
 
     if (action === 'reject') {
-      if (!confirm('この課題を却下します（未完了に戻ります）。よろしいですか？')) return;
+      if (!confirm('この課題を訂正依頼します（未完了に戻して、子にやり直してもらう）。よろしいですか？')) return;
       btn.disabled = true;
       try {
         await api('rejectTask', { taskId: id, password: state.parentPassword });
-        toast('却下しました');
+        toast('訂正依頼しました');
         dataCache = null;
         await loadData(true);
       } catch (err) {
