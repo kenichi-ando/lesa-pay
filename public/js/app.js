@@ -1,8 +1,45 @@
 (function () {
   'use strict';
 
-  const CONFIG = window.LESAPAY_CONFIG;
-  const SK = CONFIG.STORAGE_KEYS;
+  const CONFIG  = window.LESAPAY_CONFIG;
+  const SK      = CONFIG.STORAGE_KEYS;
+  const STRINGS = window.LESAPAY_STRINGS || {};
+
+  // Task status values. Authoritative source is GAS Code.gs (STATUS constant);
+  // we fetch it via the getConfig action at startup to keep the two in sync.
+  // The values below are only fallbacks used until getConfig responds.
+  let STATUS = {
+    PENDING:  '未完了',
+    APPLIED:  '申請中',
+    REJECTED: '差し戻し',
+    APPROVED: '承認済み'
+  };
+
+  // Translate "foo.bar" → STRINGS.foo.bar. With `vars` it interpolates `{name}`.
+  // Returns the key itself if missing (helps spot typos during dev).
+  function tr(key, vars) {
+    const v = key.split('.').reduce((o, k) => (o == null ? o : o[k]), STRINGS);
+    if (typeof v !== 'string') return key;
+    if (!vars) return v;
+    return v.replace(/\{(\w+)\}/g, (_, k) => (vars[k] != null ? vars[k] : ''));
+  }
+
+  // Replace text/attrs annotated with data-i18n / data-i18n-attr-*.
+  // Run once on load so the static HTML reflects STRINGS.
+  function applyI18n(root) {
+    root = root || document;
+    root.querySelectorAll('[data-i18n]').forEach((el) => {
+      el.textContent = tr(el.getAttribute('data-i18n'));
+    });
+    root.querySelectorAll('*').forEach((el) => {
+      for (const attr of Array.from(el.attributes)) {
+        if (attr.name.startsWith('data-i18n-attr-')) {
+          const target = attr.name.slice('data-i18n-attr-'.length);
+          el.setAttribute(target, tr(attr.value));
+        }
+      }
+    });
+  }
 
   // ---------- localStorage helpers ----------
   const store = {
@@ -76,7 +113,7 @@
   // ---------- API ----------
   async function api(action, payload = {}) {
     const url = store.getGasUrl();
-    if (!url) throw new Error('GAS URLが未設定です');
+    if (!url) throw new Error(tr('errors.gasUrlNotSet'));
     const body = { action, ...payload };
     if (state.user && body.user == null) body.user = state.user;
     const res = await fetch(url, {
@@ -85,10 +122,20 @@
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(body)
     });
-    if (!res.ok) throw new Error('通信エラー (' + res.status + ')');
+    if (!res.ok) throw new Error(tr('errors.network') + ' (' + res.status + ')');
     const data = await res.json();
-    if (!data.ok) throw new Error(data.error || '不明なエラー');
+    if (!data.ok) throw new Error(data.error || tr('errors.unknown'));
     return data;
+  }
+
+  // Pull server-defined values (e.g. STATUS) and merge into local memory.
+  // Best-effort: failures are silent because the in-code fallback still works.
+  async function refreshServerConfig() {
+    try {
+      const res = await api('getConfig');
+      if (res && res.status) STATUS = res.status;
+      render();
+    } catch (_) { /* fall back to local defaults */ }
   }
 
   // ---------- Render ----------
@@ -111,24 +158,25 @@
     els.balance.textContent = total.toLocaleString();
     const name = state.label || '';
     els.balanceMeta.textContent = state.loading
-      ? '更新中…'
-      : `${name ? name + ' の' : ''}残高 / 履歴 ${state.history.length} 件`;
+      ? tr('balance.updating')
+      : (name ? tr('balance.metaWithName', { name, count: state.history.length })
+              : tr('balance.meta',         { count: state.history.length }));
   }
 
   function renderTasks() {
     if (state.loading && state.tasks.length === 0) {
-      els.tasksList.innerHTML = '<div class="empty-state">読み込み中…</div>';
+      els.tasksList.innerHTML = `<div class="empty-state">${escapeHtml(tr('tasks.loading'))}</div>`;
       return;
     }
     if (state.tasks.length === 0) {
-      els.tasksList.innerHTML = '<div class="empty-state">課題がまだありません</div>';
+      els.tasksList.innerHTML = `<div class="empty-state">${escapeHtml(tr('tasks.empty'))}</div>`;
       return;
     }
 
     // Group tasks by subject
     const groups = new Map();
     for (const t of state.tasks) {
-      const key = t.subject || 'その他';
+      const key = t.subject || tr('tasks.otherGroup');
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(t);
     }
@@ -140,11 +188,11 @@
 
     els.tasksList.innerHTML = sortedKeys.map((key) => {
       const items = groups.get(key);
-      const pendingCount = items.filter((t) => t.status === '申請中').length;
-      const pendingBadge = pendingCount > 0 ? `<span class="task-group-badge">${pendingCount}件 申請中</span>` : '';
-      // Sum of estimated time for tasks that still need work (未完了 + 差し戻し).
+      const pendingCount = items.filter((t) => t.status === STATUS.APPLIED).length;
+      const pendingBadge = pendingCount > 0 ? `<span class="task-group-badge">${escapeHtml(tr('tasks.pendingCount', { n: pendingCount }))}</span>` : '';
+      // Sum of estimated time for tasks that still need work (PENDING + REJECTED).
       const totalMinutes = items
-        .filter((t) => t.status !== '承認済み' && t.status !== '申請中')
+        .filter((t) => t.status !== STATUS.APPROVED && t.status !== STATUS.APPLIED)
         .reduce((sum, t) => sum + (Number(t.minutes) || 0), 0);
       const timeBadge = totalMinutes > 0
         ? `<span class="task-group-time">⏱ ${escapeHtml(formatMinutes(totalMinutes))}</span>`
@@ -165,29 +213,29 @@
 
   function taskItemHtml(t) {
     const statusClass =
-      t.status === '申請中'   ? 'status-applied' :
-      t.status === '承認済み' ? 'status-approved' :
-      t.status === '差し戻し' ? 'status-rejected' : 'status-pending';
+      t.status === STATUS.APPLIED   ? 'status-applied' :
+      t.status === STATUS.APPROVED ? 'status-approved' :
+      t.status === STATUS.REJECTED ? 'status-rejected' : 'status-pending';
 
     const expired = isExpired(t.expiry);
-    const expiryLabel = t.expiry ? `期限: ${formatDate(t.expiry)}${expired ? ' ⚠️' : ''}` : '';
+    const expiryLabel = t.expiry ? tr('tasks.expiryLabel', { date: formatDate(t.expiry) }) + (expired ? ' ⚠️' : '') : '';
 
     let actionHtml = '';
-    if (state.parentMode && t.status === '申請中') {
+    if (state.parentMode && t.status === STATUS.APPLIED) {
       actionHtml = `
         <div class="task-action-group">
-          <button class="task-btn approve-btn" data-task-id="${escapeHtml(t.id)}" data-action="approve">✓ 承認</button>
-          <button class="task-btn reject-btn" data-task-id="${escapeHtml(t.id)}" data-action="reject">✏️ 訂正依頼</button>
+          <button class="task-btn approve-btn" data-task-id="${escapeHtml(t.id)}" data-action="approve">${escapeHtml(tr('tasks.approve'))}</button>
+          <button class="task-btn reject-btn" data-task-id="${escapeHtml(t.id)}" data-action="reject">${escapeHtml(tr('tasks.reject'))}</button>
         </div>
       `;
-    } else if (t.status === '未完了') {
-      actionHtml = `<button class="task-btn" data-task-id="${escapeHtml(t.id)}" data-action="apply" ${expired ? 'disabled' : ''}>完了報告</button>`;
-    } else if (t.status === '差し戻し') {
-      actionHtml = `<button class="task-btn resubmit-btn" data-task-id="${escapeHtml(t.id)}" data-action="apply" ${expired ? 'disabled' : ''}>↻ 再提出</button>`;
-    } else if (t.status === '申請中') {
-      actionHtml = '<span class="task-status-badge">申請中</span>';
-    } else if (t.status === '承認済み') {
-      actionHtml = '<span class="task-status-badge">✓ 承認</span>';
+    } else if (t.status === STATUS.PENDING) {
+      actionHtml = `<button class="task-btn" data-task-id="${escapeHtml(t.id)}" data-action="apply" ${expired ? 'disabled' : ''}>${escapeHtml(tr('tasks.apply'))}</button>`;
+    } else if (t.status === STATUS.REJECTED) {
+      actionHtml = `<button class="task-btn resubmit-btn" data-task-id="${escapeHtml(t.id)}" data-action="apply" ${expired ? 'disabled' : ''}>${escapeHtml(tr('tasks.resubmit'))}</button>`;
+    } else if (t.status === STATUS.APPLIED) {
+      actionHtml = `<span class="task-status-badge">${escapeHtml(tr('tasks.appliedBadge'))}</span>`;
+    } else if (t.status === STATUS.APPROVED) {
+      actionHtml = `<span class="task-status-badge">${escapeHtml(tr('tasks.approvedBadge'))}</span>`;
     }
 
     return `
@@ -211,11 +259,11 @@
 
   function renderHistory() {
     if (state.loading && state.history.length === 0) {
-      els.historyList.innerHTML = '<div class="empty-state">読み込み中…</div>';
+      els.historyList.innerHTML = `<div class="empty-state">${escapeHtml(tr('history.loading'))}</div>`;
       return;
     }
     if (state.history.length === 0) {
-      els.historyList.innerHTML = '<div class="empty-state">履歴がまだありません</div>';
+      els.historyList.innerHTML = `<div class="empty-state">${escapeHtml(tr('history.empty'))}</div>`;
       return;
     }
     const sorted = [...state.history].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -256,18 +304,18 @@
     const user = els.setupUser.value.trim();
     const label = els.setupLabel.value.trim();
     if (!url) {
-      els.setupError.textContent = 'GAS URLを入力してください';
+      els.setupError.textContent = tr('setup.needUrl');
       els.setupError.classList.remove('hidden');
       return;
     }
     if (!user) {
-      els.setupError.textContent = 'シート名（例: ライト）を入力してください';
+      els.setupError.textContent = tr('setup.needUser');
       els.setupError.classList.remove('hidden');
       return;
     }
     els.setupSubmit.disabled = true;
     const orig = els.setupSubmit.textContent;
-    els.setupSubmit.textContent = '確認中…';
+    els.setupSubmit.textContent = tr('setup.checking');
     try {
       // Connectivity check for URL + sheet name. If getData succeeds, SHEET_ID and user are both valid.
       const res = await fetch(url, {
@@ -276,9 +324,9 @@
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: 'getData', user })
       });
-      if (!res.ok) throw new Error('通信エラー (' + res.status + ')');
+      if (!res.ok) throw new Error(tr('errors.network') + ' (' + res.status + ')');
       const data = await res.json();
-      if (!data.ok) throw new Error(data.error || 'GASエラー');
+      if (!data.ok) throw new Error(data.error || tr('errors.unknown'));
 
       // Success → persist
       store.set({ gasUrl: url, user, label: label || '' });
@@ -293,7 +341,7 @@
       state.booted = true;
       els.setupModal.classList.add('hidden');
       render();
-      toast('設定を保存しました', 'success');
+      toast(tr('setup.saved'), 'success');
     } catch (err) {
       els.setupError.textContent = err.message;
       els.setupError.classList.remove('hidden');
@@ -317,6 +365,12 @@
     state.label = store.getLabel() || state.user;
     state.booted = true;
     render();
+
+    // Fetch server-side config (STATUS values) in the background.
+    // Run in parallel with loadData; the fallback STATUS is correct enough
+    // until this resolves, and a second render() picks up any updates.
+    refreshServerConfig();
+
     await loadData();
 
     // Handle ?parent=1 query (came from a LINE notification link).
@@ -337,7 +391,7 @@
           state.parentPassword = savedPw;
           state.parentMode = true;
           render();
-          toast('🔓 保護者モード ON', 'success');
+          toast(tr('parent.modeOn'), 'success');
           return;
         } catch (err) {
           // Saved password is no longer valid → drop it and fall back to manual login.
@@ -378,13 +432,13 @@
     const action = btn.dataset.action;
 
     if (action === 'apply') {
-      if (!confirm('完了したことを報告しますか？')) return;
+      if (!confirm(tr('tasks.confirmApply'))) return;
       const original = btn.textContent;
       btn.disabled = true;
-      btn.textContent = '送信中…';
+      btn.textContent = tr('tasks.applying');
       try {
         await api('applyTask', { taskId: id });
-        toast('🎉 報告しました！承認をまってね', 'success');
+        toast(tr('tasks.toastApplied'), 'success');
         dataCache = null;
         await loadData(true);
       } catch (err) {
@@ -396,11 +450,11 @@
     }
 
     if (action === 'approve') {
-      if (!confirm('この課題を承認してポイントを付与しますか？')) return;
+      if (!confirm(tr('tasks.confirmApprove'))) return;
       btn.disabled = true;
       try {
         await api('approveTask', { taskId: id, password: state.parentPassword });
-        toast('✓ 承認しました', 'success');
+        toast(tr('tasks.toastApproved'), 'success');
         dataCache = null;
         await loadData(true);
       } catch (err) {
@@ -411,11 +465,11 @@
     }
 
     if (action === 'reject') {
-      if (!confirm('この課題を訂正依頼します（未完了に戻して、子にやり直してもらう）。よろしいですか？')) return;
+      if (!confirm(tr('tasks.confirmReject'))) return;
       btn.disabled = true;
       try {
         await api('rejectTask', { taskId: id, password: state.parentPassword });
-        toast('訂正依頼しました');
+        toast(tr('tasks.toastRejected'));
         dataCache = null;
         await loadData(true);
       } catch (err) {
@@ -431,7 +485,7 @@
       state.parentMode = false;
       state.parentPassword = null;
       render();
-      toast('保護者モードを解除しました');
+      toast(tr('parent.modeOff'));
       return;
     }
     els.parentPassword.value = '';
@@ -443,13 +497,13 @@
   async function submitParentLogin() {
     const pw = els.parentPassword.value;
     if (!pw) {
-      els.parentError.textContent = 'パスワードを入力してください';
+      els.parentError.textContent = tr('parent.needPassword');
       els.parentError.classList.remove('hidden');
       return;
     }
     els.parentSubmit.disabled = true;
     const original = els.parentSubmit.textContent;
-    els.parentSubmit.textContent = '確認中…';
+    els.parentSubmit.textContent = tr('parent.checking');
     try {
       await api('verifyPassword', { password: pw });
       state.parentPassword = pw;
@@ -458,7 +512,7 @@
       store.setParentPw(pw);
       els.parentModal.classList.add('hidden');
       render();
-      toast('🔓 保護者モード ON', 'success');
+      toast(tr('parent.modeOn'), 'success');
     } catch (err) {
       state.parentPassword = null;
       els.parentError.textContent = err.message;
@@ -479,24 +533,24 @@
   async function submitCashout() {
     const amount = parseInt(els.cashoutAmount.value, 10);
     if (!amount || amount <= 0) {
-      els.cashoutError.textContent = '正しい数値を入力してください';
+      els.cashoutError.textContent = tr('cashout.invalid');
       els.cashoutError.classList.remove('hidden');
       return;
     }
     const total = state.history.reduce((s, h) => s + (Number(h.points) || 0), 0);
     if (amount > total) {
-      els.cashoutError.textContent = `残高不足です (現在 ${total} pt)`;
+      els.cashoutError.textContent = tr('cashout.insufficient', { total });
       els.cashoutError.classList.remove('hidden');
       return;
     }
-    if (!confirm(`${amount} pt を使います。よろしいですか？`)) return;
+    if (!confirm(tr('cashout.confirm', { amount }))) return;
 
     els.cashoutSubmit.disabled = true;
-    els.cashoutSubmit.textContent = '処理中…';
+    els.cashoutSubmit.textContent = tr('cashout.processing');
     try {
       await api('cashout', { amount, password: state.parentPassword });
       els.cashoutModal.classList.add('hidden');
-      toast(`💸 ${amount} pt を使いました`, 'success');
+      toast(tr('cashout.toast', { amount }), 'success');
       dataCache = null;
       await loadData(true);
     } catch (err) {
@@ -504,7 +558,7 @@
       els.cashoutError.classList.remove('hidden');
     } finally {
       els.cashoutSubmit.disabled = false;
-      els.cashoutSubmit.textContent = '使う';
+      els.cashoutSubmit.textContent = tr('cashout.submit');
     }
   }
 
@@ -517,29 +571,29 @@
     toast._t = setTimeout(() => els.toast.classList.add('hidden'), 2800);
   }
 
-  // Render submit/complete rewards. Show both as "提出+10 / 完了+100 pt"; show only one if the other is 0.
+  // Render submit/complete rewards. Show both side-by-side; show only one if the other is 0.
   function formatRewards(t) {
     const sub = Number(t.submitReward)   || 0;
     const com = Number(t.completeReward) || Number(t.points) || 0;
-    // 差し戻し means the submit reward was already paid out on the first submission, so hide it.
-    const showSub = sub > 0 && t.status !== '差し戻し';
+    // REJECTED means the submit reward was already paid out on the first submission, so hide it.
+    const showSub = sub > 0 && t.status !== STATUS.REJECTED;
     if (showSub && com > 0) {
-      return `<span class="task-points">提出+${sub.toLocaleString()} / 完了+${com.toLocaleString()} pt</span>`;
+      return `<span class="task-points">${escapeHtml(tr('tasks.rewardBoth', { submit: sub.toLocaleString(), complete: com.toLocaleString() }))}</span>`;
     }
-    if (com > 0)  return `<span class="task-points">+${com.toLocaleString()} pt</span>`;
-    if (showSub) return `<span class="task-points">提出+${sub.toLocaleString()} pt</span>`;
+    if (com > 0)  return `<span class="task-points">${escapeHtml(tr('tasks.rewardCompleteOnly', { complete: com.toLocaleString() }))}</span>`;
+    if (showSub) return `<span class="task-points">${escapeHtml(tr('tasks.rewardSubmitOnly', { submit: sub.toLocaleString() }))}</span>`;
     return '';
   }
 
-  // Format minutes as "1時間30分" / "30分" etc.
+  // Format minutes into the locale-specific representation defined in STRINGS.time.
   function formatMinutes(mins) {
     const m = Number(mins) || 0;
     if (m <= 0) return '';
     const h = Math.floor(m / 60);
     const r = m % 60;
-    if (h > 0 && r > 0) return h + '時間' + r + '分';
-    if (h > 0)          return h + '時間';
-    return r + '分';
+    if (h > 0 && r > 0) return tr('time.hourAndMinute', { h, m: r });
+    if (h > 0)          return tr('time.hour', { h });
+    return tr('time.minute', { m: r });
   }
 
   function escapeHtml(s) {
@@ -586,7 +640,7 @@
       state.parentMode = false;
       state.parentPassword = null;
       render();
-      toast('保護者モードを解除しました');
+      toast(tr('parent.modeOff'));
     });
 
     els.cashoutBtn.addEventListener('click', openCashoutModal);
@@ -608,6 +662,7 @@
       });
     });
 
+    applyI18n();
     bootstrap();
   }
 

@@ -2,7 +2,7 @@
  * LesaPay - Google Apps Script backend
  *
  * Manages multiple children in a single spreadsheet.
- * Each child has two sheets: 「課題_<name>」 and 「履歴_<name>」.
+ * Each child has two sheets, one for tasks and one for history (see SHEET_PREFIX).
  * The client sends its own <name> in the `user` parameter on every request.
  *
  * Deployment:
@@ -15,18 +15,18 @@
  *                         Skip notifications if unset; broadcast to all friends if set.
  *       APP_URL         : (optional) App URL (e.g. https://lesa-pay-v1.web.app/)
  *                         If set, LINE notifications will include a "open in parent mode" link.
- *  4. Run setupSheets("ライト") with each child name to create the two sheets
+ *  4. Run setupSheets("<child name>") for each child to create the two sheets
  *  5. Deploy → Web app (Execute as: me / Access: anyone)
  *
  * Sheet layout:
- *  - 「課題_<name>」  : A=ID, B=Status, C=Subject, D=Category, E=Title, F=SubmitReward, G=CompleteReward, H=Minutes, I=Expiry
- *  - 「履歴_<name>」  : A=Date, B=Content, C=Points
+ *  - tasks sheet   : A=ID, B=Status, C=Subject, D=Category, E=Title, F=SubmitReward, G=CompleteReward, H=Minutes, I=Expiry
+ *  - history sheet : A=Date, B=Content, C=Points
  *
  * Status values (column B):
- *  - 空 / 未完了 : Not yet submitted (empty cells are auto-filled with 未完了 on read)
- *  - 申請中      : Child has submitted, waiting for parent approval
- *  - 差し戻し    : Parent rejected; submit reward is NOT granted again on resubmit
- *  - 承認済み    : Approved
+ *  - PENDING  : Not yet submitted (empty cells are auto-filled with STATUS.PENDING on read)
+ *  - APPLIED  : Child has submitted, waiting for parent approval
+ *  - REJECTED : Parent rejected; submit reward is NOT granted again on resubmit
+ *  - APPROVED : Approved
  *
  * Design principles:
  *  - All actions go through the ACTIONS table (adding a new action = 1 row + handler)
@@ -38,41 +38,61 @@
 // Constants
 // ====================================================================
 
-// Task sheet columns (0-based). Add 1 when calling 1-based getRange.
-const TASK_COL = {
-  ID:              0,
-  STATUS:          1,
-  SUBJECT:         2,
-  CATEGORY:        3,
-  TITLE:           4,
-  SUBMIT_REWARD:   5,
-  COMPLETE_REWARD: 6,
-  MINUTES:         7,
-  EXPIRY:          8
+// Sheet name prefixes. The full sheet name is `<prefix><user>`.
+const SHEET_PREFIX = {
+  TASKS:   '課題_',
+  HISTORY: '履歴_'
 };
-const TASK_COL_COUNT = 9;
 
-// History sheet columns
-const HISTORY_COL = { DATE: 0, CONTENT: 1, POINTS: 2 };
-const HISTORY_COL_COUNT = 3;
+// Task sheet schema. Order matters: it defines both the column index and the header.
+// Add a new column = add one entry here; everything else (TASK_COL, TASK_HEADERS,
+// TASK_COL_COUNT) is derived automatically.
+const TASK_SCHEMA = [
+  { key: 'ID',              header: 'ID' },
+  { key: 'STATUS',          header: '状態' },
+  { key: 'SUBJECT',         header: '科目' },
+  { key: 'CATEGORY',        header: '分類' },
+  { key: 'TITLE',           header: '項目' },
+  { key: 'SUBMIT_REWARD',   header: '提出報酬' },
+  { key: 'COMPLETE_REWARD', header: '完了報酬' },
+  { key: 'MINUTES',         header: '時間' },
+  { key: 'EXPIRY',          header: '期限' }
+];
+// 0-based column index. Add 1 when calling the 1-based getRange.
+const TASK_COL       = Object.fromEntries(TASK_SCHEMA.map((c, i) => [c.key, i]));
+const TASK_HEADERS   = TASK_SCHEMA.map((c) => c.header);
+const TASK_COL_COUNT = TASK_SCHEMA.length;
 
-// Status values
+// History sheet schema (same idea).
+const HISTORY_SCHEMA = [
+  { key: 'DATE',    header: '日時' },
+  { key: 'CONTENT', header: '内容' },
+  { key: 'POINTS',  header: 'ポイント' }
+];
+const HISTORY_COL       = Object.fromEntries(HISTORY_SCHEMA.map((c, i) => [c.key, i]));
+const HISTORY_HEADERS   = HISTORY_SCHEMA.map((c) => c.header);
+const HISTORY_COL_COUNT = HISTORY_SCHEMA.length;
+
+// Status values written into TASK_COL.STATUS.
 const STATUS = {
-  PENDING:    '未完了',
-  APPLIED:    '申請中',
-  REJECTED:   '差し戻し',
-  APPROVED:   '承認済み'
+  PENDING:  '未完了',
+  APPLIED:  '申請中',
+  REJECTED: '差し戻し',
+  APPROVED: '承認済み'
 };
 
-const TASK_HEADERS    = ['ID', '状態', '科目', '分類', '項目', '提出報酬', '完了報酬', '時間', '期限'];
-const HISTORY_HEADERS = ['日時', '内容', 'ポイント'];
+// Special history content labels (also appear in LINE notifications).
+const HISTORY_LABEL = {
+  SUBMIT_SUFFIX: ' (提出)',  // appended to the task title for submit-reward rows
+  CASHOUT:       'ポイント消費'
+};
 
 // ====================================================================
 // Sheet name + user validation
 // ====================================================================
 
-function tasksSheetName(user)   { return '課題_' + user; }
-function historySheetName(user) { return '履歴_' + user; }
+function tasksSheetName(user)   { return SHEET_PREFIX.TASKS   + user; }
+function historySheetName(user) { return SHEET_PREFIX.HISTORY + user; }
 
 function isValidUser(user) {
   // Accept any string. Whether the sheet actually exists is checked via getSheetByName.
@@ -91,6 +111,7 @@ function isValidUser(user) {
 // ====================================================================
 
 const ACTIONS = {
+  getConfig:      { requireUser: false, handler: (req) => handleGetConfig() },
   getData:        { requireUser: true,  handler: (req) => handleGetData(req.user) },
   applyTask:      { requireUser: true,  handler: (req) => handleApplyTask(req.user, req.taskId) },
   verifyPassword: { requireUser: false, handler: (req) => handleVerifyPassword(req.password) },
@@ -227,6 +248,12 @@ function setTaskStatus(sheet, rowIndex, status) {
 // Handlers
 // ====================================================================
 
+// Return values that the frontend would otherwise have to duplicate.
+// Currently just status names; expand if anything else becomes shared.
+function handleGetConfig() {
+  return { status: STATUS };
+}
+
 function handleGetData(user) {
   const ss = getSpreadsheet();
   // C-4: reject typo'd user names (sheet not found) at setup time.
@@ -262,13 +289,13 @@ function handleApplyTask(user, taskId) {
       const completeReward = Number(row[TASK_COL.COMPLETE_REWARD]) || 0;
       const subject        = String(row[TASK_COL.SUBJECT] || '');
       const title          = String(row[TASK_COL.TITLE]   || '');
-      // Grant the submit reward only on the first submission (未完了→申請中).
-      // Skip it on resubmit from 差し戻し.
+      // Grant the submit reward only on the first submission (PENDING → APPLIED).
+      // Skip it on resubmit from REJECTED.
       const isFirstSubmit  = status !== STATUS.REJECTED;
 
       if (isFirstSubmit && submitReward > 0) {
         const histSheet = getHistorySheet(ss, user);
-        const content = (subject ? subject + ' ' : '') + title + ' (提出)';
+        const content = (subject ? subject + ' ' : '') + title + HISTORY_LABEL.SUBMIT_SUFFIX;
         histSheet.appendRow([formatDateTime(new Date()), content, submitReward]);
         SpreadsheetApp.flush();
       }
@@ -313,7 +340,7 @@ function handleApproveTask(user, taskId, password) {
   return withLock(() => {
     return findTaskRow(taskSheet, taskId, (row, rowIndex) => {
       const status = row[TASK_COL.STATUS] || STATUS.PENDING;
-      // C-1: only 申請中 tasks can be approved.
+      // C-1: only APPLIED tasks can be approved.
       if (status === STATUS.APPROVED) throw new Error('すでに承認済みです');
       if (status !== STATUS.APPLIED)  throw new Error('申請中の課題ではありません (現在: ' + status + ')');
 
@@ -343,7 +370,7 @@ function handleRejectTask(user, taskId, password) {
       const status = row[TASK_COL.STATUS] || STATUS.PENDING;
       // C-2: prevent rejecting an already-approved task (history already credited; stop double-pay).
       if (status === STATUS.APPROVED) throw new Error('承認済みの課題は訂正依頼できません');
-      // Move to 差し戻し (marker that suppresses the submit reward on resubmit).
+      // Move to REJECTED (marker that suppresses the submit reward on resubmit).
       setTaskStatus(sheet, rowIndex, STATUS.REJECTED);
       return { taskId };
     });
@@ -363,7 +390,7 @@ function handleCashout(user, amount, password) {
     const total = readHistory(ss, sheetName)
       .reduce((s, h) => s + (Number(h.points) || 0), 0);
     if (amt > total) throw new Error('残高不足です (現在 ' + total + ' pt)');
-    sheet.appendRow([formatDateTime(new Date()), 'ポイント消費', -amt]);
+    sheet.appendRow([formatDateTime(new Date()), HISTORY_LABEL.CASHOUT, -amt]);
     return { amount: amt, balance: total - amt };
   });
 
@@ -391,7 +418,7 @@ function readTasks(ss, sheetName) {
   if (lastRow < 2) return [];
   const rows = sheet.getRange(2, 1, lastRow - 1, TASK_COL_COUNT).getValues();
 
-  // Auto-fill missing IDs and default status (empty cells become 未完了).
+  // Auto-fill missing IDs and default status (empty cells become PENDING).
   let dirty = false;
   for (let i = 0; i < rows.length; i++) {
     const hasTitle = rows[i][TASK_COL.TITLE]  !== '' && rows[i][TASK_COL.TITLE]  != null;
@@ -487,7 +514,7 @@ function truncDate(d) {
 
 /**
  * Create the two sheets for one child. Call from the GAS editor via a throwaway wrapper:
- *   function tmp() { setupSheets('ライト'); }
+ *   function tmp() { setupSheets('<child name>'); }
  */
 function setupSheets(user) {
   if (!user) throw new Error('user が未指定。例: setupSheets("ライト")');

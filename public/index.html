@@ -65,14 +65,14 @@
   <header class="app-header">
     <h1 class="app-title">
       <svg class="app-logo" width="36" height="36"><use href="#lesser-panda"/></svg>
-      <span class="app-title-text">LesaPay</span>
+      <span class="app-title-text" data-i18n="app.title"></span>
       <span id="user-label" class="user-label hidden"></span>
     </h1>
     <div class="header-actions">
-      <button id="settings-btn" class="parent-btn" aria-label="設定">
+      <button id="settings-btn" class="parent-btn" data-i18n-attr-aria-label="header.settings">
         <span>⚙️</span>
       </button>
-      <button id="parent-mode-btn" class="parent-btn" aria-label="保護者モード">
+      <button id="parent-mode-btn" class="parent-btn" data-i18n-attr-aria-label="header.parentMode">
         <span class="parent-icon">🔑</span>
       </button>
     </div>
@@ -81,40 +81,40 @@
   <main class="app-main">
     <section class="balance-card">
       <svg class="balance-mascot" width="48" height="48" aria-hidden="true"><use href="#lesser-panda"/></svg>
-      <div class="balance-label">いまのポイント</div>
+      <div class="balance-label" data-i18n="balance.label"></div>
       <div class="balance-value">
         <span id="balance-amount">---</span>
-        <span class="balance-unit">pt</span>
+        <span class="balance-unit" data-i18n="balance.unit"></span>
       </div>
-      <div class="balance-meta" id="balance-meta">読み込み中…</div>
+      <div class="balance-meta" id="balance-meta" data-i18n="balance.loading"></div>
     </section>
 
     <section class="content-section">
       <div class="section-header">
-        <h2 class="section-title"><span class="section-emoji">📋</span>がんばること</h2>
-        <button id="refresh-btn" class="icon-btn" aria-label="更新">🔄</button>
+        <h2 class="section-title"><span class="section-emoji">📋</span><span data-i18n="tasks.sectionTitle"></span></h2>
+        <button id="refresh-btn" class="icon-btn" data-i18n-attr-aria-label="header.refresh">🔄</button>
       </div>
       <div id="tasks-list" class="tasks-list">
-        <div class="empty-state">読み込み中…</div>
+        <div class="empty-state" data-i18n="tasks.loading"></div>
       </div>
     </section>
 
     <section class="content-section">
       <div class="section-header">
-        <h2 class="section-title"><span class="section-emoji">🐾</span>あしあと（履歴）</h2>
+        <h2 class="section-title"><span class="section-emoji">🐾</span><span data-i18n="history.sectionTitle"></span></h2>
       </div>
       <div id="history-list" class="history-list">
-        <div class="empty-state">読み込み中…</div>
+        <div class="empty-state" data-i18n="history.loading"></div>
       </div>
     </section>
 
     <div id="parent-panel" class="parent-panel hidden">
       <div class="parent-panel-header">
-        <span class="parent-panel-title">🔓 保護者モード</span>
-        <button id="parent-logout-btn" class="text-btn">ロック</button>
+        <span class="parent-panel-title" data-i18n="header.parentModeOn"></span>
+        <button id="parent-logout-btn" class="text-btn" data-i18n="header.lock"></button>
       </div>
       <div class="parent-actions">
-        <button id="cashout-btn" class="action-btn cashout-btn">💸 ポイントを使う</button>
+        <button id="cashout-btn" class="action-btn" data-i18n="cashout.button"></button>
       </div>
     </div>
   </main>
@@ -122,12 +122,12 @@
   <div id="parent-modal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-content">
       <svg class="modal-mascot" width="64" height="64"><use href="#lesser-panda"/></svg>
-      <h3 class="modal-title">保護者ログイン</h3>
-      <p class="modal-desc">パスワードを入力してください</p>
+      <h3 class="modal-title" data-i18n="parent.title"></h3>
+      <p class="modal-desc" data-i18n="parent.desc"></p>
       <input type="password" id="parent-password" class="modal-input" inputmode="numeric" autocomplete="off" />
       <div class="modal-actions">
-        <button id="parent-cancel-btn" class="btn btn-secondary">キャンセル</button>
-        <button id="parent-submit-btn" class="btn btn-primary">ログイン</button>
+        <button id="parent-cancel-btn" class="btn btn-secondary" data-i18n="parent.cancel"></button>
+        <button id="parent-submit-btn" class="btn btn-primary" data-i18n="parent.login"></button>
       </div>
       <div id="parent-error" class="modal-error hidden"></div>
     </div>
@@ -136,12 +136,12 @@
   <div id="cashout-modal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-content">
       <svg class="modal-mascot" width="64" height="64"><use href="#lesser-panda"/></svg>
-      <h3 class="modal-title">ポイントを使う</h3>
-      <p class="modal-desc">使うポイント数を入力してください</p>
+      <h3 class="modal-title" data-i18n="cashout.title"></h3>
+      <p class="modal-desc" data-i18n="cashout.desc"></p>
       <input type="number" id="cashout-amount" class="modal-input" inputmode="numeric" min="1" placeholder="500" />
       <div class="modal-actions">
-        <button id="cashout-cancel-btn" class="btn btn-secondary">キャンセル</button>
-        <button id="cashout-submit-btn" class="btn btn-primary">使う</button>
+        <button id="cashout-cancel-btn" class="btn btn-secondary" data-i18n="cashout.cancel"></button>
+        <button id="cashout-submit-btn" class="btn btn-primary" data-i18n="cashout.submit"></button>
       </div>
       <div id="cashout-error" class="modal-error hidden"></div>
     </div>
@@ -151,21 +151,21 @@
   <div id="setup-modal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-content">
       <svg class="modal-mascot" width="64" height="64"><use href="#lesser-panda"/></svg>
-      <h3 class="modal-title">はじめての設定</h3>
-      <p class="modal-desc">この端末で使う情報を設定します</p>
+      <h3 class="modal-title" data-i18n="setup.title"></h3>
+      <p class="modal-desc" data-i18n="setup.desc"></p>
 
-      <label class="setup-label">GAS Web App URL</label>
-      <input type="text" id="setup-gas-url" class="modal-input" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" />
+      <label class="setup-label" data-i18n="setup.gasUrlLabel"></label>
+      <input type="text" id="setup-gas-url" class="modal-input" data-i18n-attr-placeholder="setup.gasUrlPlaceholder" autocomplete="off" />
 
-      <label class="setup-label">シート名（「課題_◯◯」「履歴_◯◯」の◯◯部分）</label>
-      <input type="text" id="setup-user" class="modal-input" placeholder="ライト" autocomplete="off" />
+      <label class="setup-label" data-i18n="setup.userLabel"></label>
+      <input type="text" id="setup-user" class="modal-input" data-i18n-attr-placeholder="setup.userPlaceholder" autocomplete="off" />
 
-      <label class="setup-label">画面に表示する愛称（任意・空欄ならシート名と同じ）</label>
-      <input type="text" id="setup-label" class="modal-input" placeholder="ライト" autocomplete="off" />
+      <label class="setup-label" data-i18n="setup.labelLabel"></label>
+      <input type="text" id="setup-label" class="modal-input" data-i18n-attr-placeholder="setup.labelPlaceholder" autocomplete="off" />
 
       <div class="modal-actions">
-        <button id="setup-cancel-btn" class="btn btn-secondary hidden">キャンセル</button>
-        <button id="setup-submit-btn" class="btn btn-primary">保存</button>
+        <button id="setup-cancel-btn" class="btn btn-secondary hidden" data-i18n="setup.cancel"></button>
+        <button id="setup-submit-btn" class="btn btn-primary" data-i18n="setup.save"></button>
       </div>
       <div id="setup-error" class="modal-error hidden"></div>
     </div>
@@ -174,6 +174,7 @@
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <script src="js/config.js"></script>
+  <script src="js/strings.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
