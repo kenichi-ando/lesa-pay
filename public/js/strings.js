@@ -43,10 +43,11 @@ window.LESAPAY_STRINGS = {
     toastApplied: '🎉 報告しました!承認をまってね',
     toastApproved: '✓ 承認しました',
     toastRejected: '訂正依頼しました',
-    expiry: '期限: {date}',
+    expiryLabel: '期限: {date}',
     pendingCount: '{n}件 申請中',
     rewardSubmitOnly: '提出+{submit} pt',
     rewardCompleteOnly: '+{complete} pt',
+    rewardCompleteLabeled: '完了+{complete} pt',
     rewardBoth: '提出+{submit} / 完了+{complete} pt'
   },
 

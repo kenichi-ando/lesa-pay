@@ -168,14 +168,18 @@
       els.tasksList.innerHTML = `<div class="empty-state">${escapeHtml(tr('tasks.loading'))}</div>`;
       return;
     }
-    if (state.tasks.length === 0) {
+    // Hide approved tasks from the list (they live on in the spreadsheet
+    // and in the history feed). The active list only shows pending work.
+    const visible = state.tasks.filter((t) => t.status !== STATUS.APPROVED);
+
+    if (visible.length === 0) {
       els.tasksList.innerHTML = `<div class="empty-state">${escapeHtml(tr('tasks.empty'))}</div>`;
       return;
     }
 
     // Group tasks by subject
     const groups = new Map();
-    for (const t of state.tasks) {
+    for (const t of visible) {
       const key = t.subject || tr('tasks.otherGroup');
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(t);
@@ -593,7 +597,13 @@
     if (showSub && com > 0) {
       return `<span class="task-points">${escapeHtml(tr('tasks.rewardBoth', { submit: sub.toLocaleString(), complete: com.toLocaleString() }))}</span>`;
     }
-    if (com > 0)  return `<span class="task-points">${escapeHtml(tr('tasks.rewardCompleteOnly', { complete: com.toLocaleString() }))}</span>`;
+    // For REJECTED with a submit reward already paid, prefix the remaining
+    // reward with "完了" so it's clear the points come from approval, not resubmit.
+    if (com > 0) {
+      const wasResubmit = t.status === STATUS.REJECTED && sub > 0;
+      const key = wasResubmit ? 'tasks.rewardCompleteLabeled' : 'tasks.rewardCompleteOnly';
+      return `<span class="task-points">${escapeHtml(tr(key, { complete: com.toLocaleString() }))}</span>`;
+    }
     if (showSub) return `<span class="task-points">${escapeHtml(tr('tasks.rewardSubmitOnly', { submit: sub.toLocaleString() }))}</span>`;
     return '';
   }
