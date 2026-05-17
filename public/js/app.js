@@ -361,6 +361,14 @@
       openSetup({ initial: true });
       return;
     }
+    // ?user=<name> from a LINE link switches this device to that child before loading.
+    // The change is persisted to localStorage so a refresh keeps the new selection.
+    const params = new URLSearchParams(location.search);
+    const targetUser = params.get('user');
+    if (targetUser && targetUser !== store.getUser()) {
+      store.set({ user: targetUser, label: targetUser });
+    }
+
     state.user = store.getUser();
     state.label = store.getLabel() || state.user;
     state.booted = true;
@@ -376,10 +384,10 @@
     // Handle ?parent=1 query (came from a LINE notification link).
     // If this device has logged in as parent before, auto-login with the saved password.
     // Otherwise just open the parent login modal.
-    const params = new URLSearchParams(location.search);
     if (params.get('parent') === '1') {
-      // Strip ?parent=1 from the URL so a reload does not re-trigger this flow.
+      // Strip ?parent / ?user from the URL so a reload does not re-trigger this flow.
       params.delete('parent');
+      params.delete('user');
       const cleaned = location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash;
       history.replaceState(null, '', cleaned);
 
@@ -399,6 +407,11 @@
         }
       }
       openParentModal();
+    } else if (targetUser) {
+      // ?user=<name> alone (no ?parent=1): clean up the URL too.
+      params.delete('user');
+      const cleaned = location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash;
+      history.replaceState(null, '', cleaned);
     }
   }
 

@@ -166,8 +166,10 @@ function checkPassword(password) {
 }
 
 // Send a notification via LINE Messaging API broadcast (to everyone who friended the official account).
-// Skip silently if LINE_TOKEN is not set. Failures are logged but never break the app flow.
-function notify(subject, body) {
+// `targetUser` is the child the event is about. Encoded into the deep link so a parent who taps it
+// from any device lands on that child's view. Skip silently if LINE_TOKEN is not set.
+// Failures are logged but never break the app flow.
+function notify(targetUser, subject, body) {
   const props = PropertiesService.getScriptProperties();
   const token = props.getProperty('LINE_TOKEN');
   if (!token) return;
@@ -175,7 +177,17 @@ function notify(subject, body) {
   let message = '【' + subject + '】\n' + body;
   if (appUrl) {
     // Opening with ?parent=1 makes the frontend show the parent login dialog automatically.
-    const url = appUrl + (appUrl.indexOf('?') >= 0 ? '&' : '?') + 'parent=1';
+    // ?user=<name> switches the device to that child before login.
+    // Make sure there is a `/` between host and query (some clients drop a query that
+    // sits directly after the host with no path).
+    let base = appUrl;
+    if (base.indexOf('?') < 0 && base.charAt(base.length - 1) !== '/') {
+      base += '/';
+    }
+    const params = ['parent=1'];
+    if (targetUser) params.push('user=' + encodeURIComponent(targetUser));
+    const sep = base.indexOf('?') >= 0 ? '&' : '?';
+    const url = base + sep + params.join('&');
     message += '\n\n👨‍👩‍👧 保護者モードで開く:\n' + url;
   }
   try {
@@ -311,7 +323,7 @@ function handleApplyTask(user, taskId) {
   });
 
   // Notify after releasing the lock so a slow notification does not extend the lock.
-  notify(user + 'から完了報告', buildApplyNotifyBody(user, notifyPayload));
+  notify(user, user + 'から完了報告', buildApplyNotifyBody(user, notifyPayload));
   return { taskId };
 }
 
@@ -395,6 +407,7 @@ function handleCashout(user, amount, password) {
   });
 
   notify(
+    user,
     user + 'のポイント消費',
     user + ' が ' + amt + ' pt を使いました。\n残高: ' + result.balance + ' pt'
   );
