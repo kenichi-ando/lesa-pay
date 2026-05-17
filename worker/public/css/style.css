@@ -970,17 +970,6 @@ body {
   font-weight: 600;
 }
 
-/* Label for the setup modal */
-.setup-label {
-  display: block;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--color-text-light);
-  margin-bottom: 6px;
-  margin-top: 8px;
-  text-align: left;
-}
-
 /* ---------------- Generic button (.btn) ---------------- */
 .btn {
   flex: 1;

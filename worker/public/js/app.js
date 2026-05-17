@@ -5,7 +5,7 @@
   const SK      = CONFIG.STORAGE_KEYS;
   const STRINGS = window.LESAPAY_STRINGS || {};
 
-  // Task status values. Authoritative source is GAS Code.gs (STATUS constant);
+  // Task status values. Authoritative source is the server (worker/src/schema.ts);
   // we fetch it via the getConfig action at startup to keep the two in sync.
   // The values below are only fallbacks used until getConfig responds.
   let STATUS = {
@@ -40,11 +40,9 @@
   }
 
   // ---------- localStorage helpers ----------
-  // The user list itself is owned by GAS (Script Property USERS). We only
-  // remember the GAS URL and the most recently selected user key.
+  // The user list itself is owned by the server (設定 sheet). We only
+  // remember the most recently selected user key and the parent password.
   const store = {
-    getGasUrl()     { return localStorage.getItem(SK.gasUrl); },
-    setGasUrl(url)  { localStorage.setItem(SK.gasUrl, url); },
     getUser()       { return localStorage.getItem(SK.user); },
     setUser(user)   { localStorage.setItem(SK.user, user); },
     clearUser()     { localStorage.removeItem(SK.user); },
@@ -56,7 +54,7 @@
   // ---------- State ----------
   const state = {
     user: null,            // currently selected user key (sheet-name suffix)
-    serverUsers: [],       // [{key, label}] from GAS USERS
+    serverUsers: [],       // [{key, label}] from the server (設定 sheet USERS row)
     parentMode: false,
     parentPassword: null,
     tasks: [],
@@ -77,7 +75,6 @@
   const $ = (id) => document.getElementById(id);
   const els = {
     parentBtn: $('parent-mode-btn'),
-    settingsBtn: $('settings-btn'),
     userLabel: $('user-label'),
     userPopover: $('user-popover'),
     userPopoverList: $('user-popover-list'),
@@ -99,31 +96,39 @@
     cashoutSubmit: $('cashout-submit-btn'),
     cashoutCancel: $('cashout-cancel-btn'),
     cashoutError: $('cashout-error'),
-    setupModal: $('setup-modal'),
-    setupGasUrl: $('setup-gas-url'),
-    setupSubmit: $('setup-submit-btn'),
-    setupCancel: $('setup-cancel-btn'),
-    setupError: $('setup-error'),
     toast: $('toast')
   };
 
   // ---------- API ----------
+  // The Worker hosts both the SPA and the API on the same origin, so the
+  // endpoint is a relative path and a normal application/json POST works
+  // without a CORS preflight detour.
   async function api(action, payload = {}) {
-    const url = store.getGasUrl();
-    if (!url) throw new Error(tr('errors.gasUrlNotSet'));
     const body = { action, ...payload };
     if (state.user && body.user == null) body.user = state.user;
-    const res = await fetch(url, {
-      method: 'POST',
-      mode: 'cors',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(body)
-    });
-    if (!res.ok) throw new Error(tr('errors.network') + ' (' + res.status + ')');
-    const data = await res.json();
+    let res;
+    try {
+      res = await fetch(CONFIG.API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+    } catch (_err) {
+      throw new Error(tr('errors.network'));
+    }
+    // The server returns {ok:false, error} as JSON even on 4xx/5xx, so we let
+    // the body win. Falling back to errors.network only when the body is not
+    // JSON at all (proxy errors, captive portals, etc.).
+    let data;
+    try {
+      data = await res.json();
+    } catch (_err) {
+      throw new Error(tr('errors.network') + ' (' + res.status + ')');
+    }
     if (!data.ok) throw new Error(data.error || tr('errors.unknown'));
     return data;
   }
+
 
   // Pull STATUS + USERS roster from the server. The roster is authoritative;
   // we always overwrite state.serverUsers, then make sure the active user
@@ -302,7 +307,7 @@
   function renderUserPopover() {
     const list = state.serverUsers;
     if (list.length === 0) {
-      // GAS USERS not configured — point the user to the setup screen.
+      // USERS row of the 設定 sheet is empty — surface it to the operator.
       els.userPopoverList.innerHTML = `<li class="user-popover-empty">${escapeHtml(tr('setup.needUsers'))}</li>`;
       return;
     }
@@ -354,76 +359,8 @@
     await loadData(true);
   }
 
-  // ---------- Setup ----------
-  function openSetup({ initial }) {
-    els.setupGasUrl.value = store.getGasUrl() || '';
-    els.setupError.classList.add('hidden');
-    els.setupCancel.classList.toggle('hidden', !!initial);
-    els.setupModal.classList.remove('hidden');
-    setTimeout(() => els.setupGasUrl.focus(), 50);
-  }
-
-  async function submitSetup() {
-    const url = els.setupGasUrl.value.trim();
-    if (!url) {
-      els.setupError.textContent = tr('setup.needUrl');
-      els.setupError.classList.remove('hidden');
-      return;
-    }
-    els.setupSubmit.disabled = true;
-    const orig = els.setupSubmit.textContent;
-    els.setupSubmit.textContent = tr('setup.checking');
-    try {
-      // getConfig also returns the USERS roster, so we both validate the URL
-      // and learn which children to show in one round-trip.
-      const res = await fetch(url, {
-        method: 'POST',
-        mode: 'cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'getConfig' })
-      });
-      if (!res.ok) throw new Error(tr('errors.network') + ' (' + res.status + ')');
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error || tr('errors.unknown'));
-
-      const incoming = Array.isArray(data.users) ? data.users : [];
-      const filtered = incoming.filter((u) => u && typeof u.key === 'string' && u.key);
-      if (filtered.length === 0) {
-        // GAS reachable but USERS Script Property is unset/empty.
-        throw new Error(tr('setup.needUsers'));
-      }
-
-      store.setGasUrl(url);
-      if (data.status) STATUS = data.status;
-      state.serverUsers = filtered;
-      reconcileActiveUser();
-
-      els.setupModal.classList.add('hidden');
-      toast(tr('setup.saved'), 'success');
-
-      state.booted = true;
-      render();
-      await loadData(true);
-    } catch (err) {
-      els.setupError.textContent = err.message;
-      els.setupError.classList.remove('hidden');
-    } finally {
-      els.setupSubmit.disabled = false;
-      els.setupSubmit.textContent = orig;
-    }
-  }
-
-  function closeSetup() {
-    els.setupModal.classList.add('hidden');
-  }
-
   // ---------- Bootstrap ----------
   async function bootstrap() {
-    if (!store.getGasUrl()) {
-      openSetup({ initial: true });
-      return;
-    }
-
     // Tentative active user from localStorage; refreshServerConfig may override.
     const stored = store.getUser();
     if (stored) state.user = stored;
@@ -438,15 +375,13 @@
     }
 
     if (state.serverUsers.length === 0) {
-      // USERS not configured — surface the setup screen so the operator can fix it.
-      openSetup({ initial: false });
-      els.setupError.textContent = tr('setup.needUsers');
-      els.setupError.classList.remove('hidden');
+      // USERS unset in the 設定 sheet — nothing to render. Tell the operator.
+      toast(tr('setup.needUsers'), 'error');
       return;
     }
 
     // Honor LINE deep-link ?user=<key> AFTER the server roster is known so we
-    // never persist a key that GAS doesn't recognise.
+    // never persist a key the server doesn't recognise.
     const params = new URLSearchParams(location.search);
     const linkUser = params.get('user');
     if (linkUser && userKeys().includes(linkUser) && linkUser !== state.user) {
@@ -470,20 +405,7 @@
       const cleaned = location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash;
       history.replaceState(null, '', cleaned);
 
-      if (state.parentMode) return;
-      const savedPw = store.getParentPw();
-      if (savedPw) {
-        try {
-          await api('verifyPassword', { password: savedPw });
-          state.parentPassword = savedPw;
-          state.parentMode = true;
-          render();
-          toast(tr('parent.modeOn'), 'success');
-          return;
-        } catch (err) {
-          store.clearParentPw();
-        }
-      }
+      if (await tryAutoLoginParent()) return;
       openParentModal();
     } else if (linkUser) {
       // ?user=<key> alone (no ?parent=1): clean up the URL too.
@@ -579,10 +501,38 @@
       toast(tr('parent.modeOff'));
       return;
     }
-    els.parentPassword.value = '';
-    els.parentError.classList.add('hidden');
-    els.parentModal.classList.remove('hidden');
-    setTimeout(() => els.parentPassword.focus(), 50);
+    // Reuse the saved parent password if it still works; only fall back to the
+    // login modal when there is no stored password or it is no longer valid.
+    tryAutoLoginParent().then((ok) => {
+      if (ok) return;
+      els.parentPassword.value = '';
+      els.parentError.classList.add('hidden');
+      els.parentModal.classList.remove('hidden');
+      setTimeout(() => els.parentPassword.focus(), 50);
+    });
+  }
+
+  // Attempt to enter parent mode using the password persisted in localStorage.
+  // Returns true on success. On failure (no password / wrong password) the
+  // caller is expected to surface the manual login modal.
+  async function tryAutoLoginParent() {
+    if (state.parentMode) return true;
+    const savedPw = store.getParentPw();
+    if (!savedPw) return false;
+    try {
+      await api('verifyPassword', { password: savedPw });
+      state.parentPassword = savedPw;
+      state.parentMode = true;
+      render();
+      toast(tr('parent.modeOn'), 'success');
+      return true;
+    } catch (_err) {
+      // Stored password no longer matches (rotated by the parent) — clear it
+      // so future taps go straight to the manual login flow.
+      store.clearParentPw();
+      state.parentPassword = null;
+      return false;
+    }
   }
 
   async function submitParentLogin() {
@@ -739,11 +689,6 @@
     els.cashoutCancel.addEventListener('click', () => els.cashoutModal.classList.add('hidden'));
 
     els.refreshBtn.addEventListener('click', () => loadData(true));
-
-    els.settingsBtn.addEventListener('click', () => openSetup({ initial: false }));
-    els.setupSubmit.addEventListener('click', submitSetup);
-    els.setupCancel.addEventListener('click', closeSetup);
-    els.setupGasUrl.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitSetup(); });
 
     els.userLabel.addEventListener('click', (e) => {
       e.stopPropagation();

@@ -90,9 +90,6 @@
       <button id="user-label" class="user-label hidden" type="button" data-i18n-attr-aria-label="header.switchUser"></button>
     </h1>
     <div class="header-actions">
-      <button id="settings-btn" class="parent-btn" data-i18n-attr-aria-label="header.settings">
-        <span>⚙️</span>
-      </button>
       <button id="parent-mode-btn" class="parent-btn" data-i18n-attr-aria-label="header.parentMode">
         <span class="parent-icon">🔑</span>
       </button>
@@ -170,24 +167,6 @@
         <button id="cashout-submit-btn" class="btn btn-primary" data-i18n="cashout.submit"></button>
       </div>
       <div id="cashout-error" class="modal-error hidden"></div>
-    </div>
-  </div>
-
-  <!-- Modal for first-time setup / settings reset -->
-  <div id="setup-modal" class="modal hidden" role="dialog" aria-modal="true">
-    <div class="modal-content">
-      <svg class="modal-mascot" width="64" height="64"><use href="#lesser-panda"/></svg>
-      <h3 class="modal-title" data-i18n="setup.title"></h3>
-      <p class="modal-desc" data-i18n="setup.desc"></p>
-
-      <label class="setup-label" data-i18n="setup.gasUrlLabel"></label>
-      <input type="text" id="setup-gas-url" class="modal-input" data-i18n-attr-placeholder="setup.gasUrlPlaceholder" autocomplete="off" />
-
-      <div class="modal-actions">
-        <button id="setup-cancel-btn" class="btn btn-secondary hidden" data-i18n="setup.cancel"></button>
-        <button id="setup-submit-btn" class="btn btn-primary" data-i18n="setup.save"></button>
-      </div>
-      <div id="setup-error" class="modal-error hidden"></div>
     </div>
   </div>
 

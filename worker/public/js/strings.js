@@ -40,7 +40,7 @@ window.LESAPAY_STRINGS = {
     approvedBadge: '✓ 承認',
     confirmApply: '完了したことを報告しますか?',
     confirmApprove: 'この課題を承認してポイントを付与しますか?',
-    confirmReject: 'この課題を訂正依頼します(未完了に戻して、子にやり直してもらう)。よろしいですか?',
+    confirmReject: 'この課題を訂正依頼します。よろしいですか?',
     toastApplied: '🎉 報告しました!承認をまってね',
     toastApproved: '✓ 承認しました',
     toastRejected: '訂正依頼しました',
@@ -83,16 +83,7 @@ window.LESAPAY_STRINGS = {
   },
 
   setup: {
-    title: 'はじめての設定',
-    desc: 'GAS Web App URL を設定してください',
-    gasUrlLabel: 'GAS Web App URL',
-    gasUrlPlaceholder: 'https://script.google.com/macros/s/.../exec',
-    save: '保存',
-    checking: '確認中…',
-    cancel: 'キャンセル',
-    needUrl: 'GAS URL を入力してください',
-    saved: '設定を保存しました',
-    needUsers: 'GAS の Script Property USERS にユーザを設定してください'
+    needUsers: '設定シートの USERS にユーザを記入してください'
   },
 
   users: {
@@ -107,7 +98,6 @@ window.LESAPAY_STRINGS = {
   },
 
   errors: {
-    gasUrlNotSet: 'GAS URL が未設定です',
     network: '通信エラー',
     unknown: '不明なエラー'
   }
