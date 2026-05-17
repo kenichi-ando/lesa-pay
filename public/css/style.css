@@ -1,14 +1,14 @@
 /* ============================================================
-   LesaPay スタイル
-   レッサーパンダ・カラーパレット
-     primary  : 赤茶色の毛 (#b6562d)
-     accent   : 顔の濃いマスク (#8a3f1f)
-     cream    : 顔の白〜クリーム (#fff4e6)
-     bamboo   : 笹の緑
-     dark     : 鼻・目・しっぽの縞 (#3a2418)
+   LesaPay styles
+   Red panda color palette
+     primary : reddish-brown fur (#b6562d)
+     accent  : dark face mask    (#8a3f1f)
+     cream   : white face fur    (#fff4e6)
+     bamboo  : bamboo green
+     dark    : nose / eye / tail stripes (#3a2418)
    ============================================================ */
 
-/* ---------------- 変数 ---------------- */
+/* ---------------- Variables ---------------- */
 :root {
   --color-primary: #b6562d;
   --color-primary-dark: #8a3f1f;
@@ -38,7 +38,7 @@
   --safe-area-bottom: env(safe-area-inset-bottom, 0);
 }
 
-/* ---------------- リセット ---------------- */
+/* ---------------- Reset ---------------- */
 * {
   margin: 0;
   padding: 0;
@@ -64,7 +64,7 @@ body {
   padding-bottom: calc(80px + var(--safe-area-bottom));
 }
 
-/* PC幅で背景にうっすら足跡 */
+/* Subtle paw prints on the background at desktop width */
 @media (min-width: 720px) {
   body::before {
     content: "";
@@ -82,7 +82,7 @@ body {
   }
 }
 
-/* ---------------- ヘッダー ---------------- */
+/* ---------------- Header ---------------- */
 .app-header {
   position: sticky;
   top: 0;
@@ -97,7 +97,7 @@ body {
   overflow: hidden;
 }
 
-/* ヘッダーに小さな足跡を散らす */
+/* Sprinkle tiny paw prints across the header */
 .app-header::before {
   content: "";
   position: absolute;
@@ -110,7 +110,7 @@ body {
   pointer-events: none;
 }
 
-/* ヘッダー下端のしっぽの縞模様 */
+/* Tail-stripe pattern at the bottom edge of the header */
 .app-header::after {
   content: "";
   position: absolute;
@@ -207,14 +207,14 @@ body {
   animation: pulse-warm 1.5s ease-in-out infinite;
 }
 
-/* ---------------- メイン ---------------- */
+/* ---------------- Main ---------------- */
 .app-main {
   padding: 20px;
   max-width: 720px;
   margin: 0 auto;
 }
 
-/* ---------------- 残高カード ---------------- */
+/* ---------------- Balance card ---------------- */
 .balance-card {
   background:
     radial-gradient(circle at 25% 20%, rgba(255,255,255,0.7) 0%, transparent 40%),
@@ -237,7 +237,7 @@ body {
   transform: translateY(-2px) scale(1.01);
 }
 
-/* 縞模様の装飾帯 (しっぽモチーフ) */
+/* Decorative stripe band (tail motif) */
 .balance-card::before {
   content: "";
   position: absolute;
@@ -301,7 +301,7 @@ body {
   font-weight: 500;
 }
 
-/* ---------------- セクション見出し ---------------- */
+/* ---------------- Section headings ---------------- */
 .content-section {
   margin-bottom: 28px;
 }
@@ -345,7 +345,7 @@ body {
   transform: rotate(180deg);
 }
 
-/* ---------------- タスク一覧 ---------------- */
+/* ---------------- Task list ---------------- */
 .tasks-list,
 .history-list {
   display: flex;
@@ -535,6 +535,17 @@ body {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
+.task-btn.resubmit-btn {
+  background: linear-gradient(135deg, var(--color-warning) 0%, #d48a1e 100%);
+  box-shadow: 0 2px 6px rgba(232, 162, 58, 0.4);
+}
+
+/* Border color for the 差し戻し (rejected) state */
+.task-item.status-rejected {
+  border-left-color: var(--color-warning);
+  background: linear-gradient(90deg, #fff3df 0%, #ffffff 30%);
+}
+
 .task-action-group {
   display: flex;
   flex-direction: column;
@@ -559,7 +570,7 @@ body {
   color: white;
 }
 
-/* ---------------- 科目グループ ---------------- */
+/* ---------------- Subject groups ---------------- */
 .task-group {
   margin-bottom: 16px;
 }
@@ -608,12 +619,12 @@ body {
   gap: 10px;
 }
 
-/* グループ内のタスクは科目タグが見出しと重複するので非表示 */
+/* Inside a group the subject tag duplicates the heading, so hide it */
 .task-group-items .task-tag.subject {
   display: none;
 }
 
-/* ---------------- 履歴 ---------------- */
+/* ---------------- History ---------------- */
 .history-item {
   background: linear-gradient(135deg, #fff 0%, #fffaf2 100%);
   border-radius: 16px;
@@ -691,7 +702,7 @@ body {
   animation: panda-bounce 3s ease-in-out infinite;
 }
 
-/* ---------------- 保護者パネル ---------------- */
+/* ---------------- Parent panel ---------------- */
 .parent-panel {
   position: fixed;
   bottom: 0;
@@ -760,7 +771,7 @@ body {
   transform: scale(0.98);
 }
 
-/* ---------------- モーダル ---------------- */
+/* ---------------- Modal ---------------- */
 .modal {
   position: fixed;
   inset: 0;
@@ -846,7 +857,7 @@ body {
   font-weight: 600;
 }
 
-/* セットアップモーダルのラベル */
+/* Label for the setup modal */
 .setup-label {
   display: block;
   font-size: 12px;
@@ -857,7 +868,7 @@ body {
   text-align: left;
 }
 
-/* ---------------- 共通ボタン (.btn) ---------------- */
+/* ---------------- Generic button (.btn) ---------------- */
 .btn {
   flex: 1;
   padding: 12px;
@@ -898,7 +909,7 @@ body {
   border: 2px solid var(--color-border);
 }
 
-/* ---------------- トースト ---------------- */
+/* ---------------- Toast ---------------- */
 .toast {
   position: fixed;
   bottom: 100px;
@@ -928,11 +939,10 @@ body {
   border-color: #8a2e1a;
 }
 
-/* ---------------- ユーティリティ ---------------- */
+/* ---------------- Utilities ---------------- */
 .hidden { display: none !important; }
-.loading { opacity: 0.5; pointer-events: none; }
 
-/* ---------------- アニメーション ---------------- */
+/* ---------------- Animations ---------------- */
 @keyframes panda-bounce {
   0%, 100% { transform: translateY(0) rotate(-3deg); }
   50%      { transform: translateY(-3px) rotate(3deg); }
@@ -964,7 +974,7 @@ body {
   to   { opacity: 1; transform: translate(-50%, 0); }
 }
 
-/* ---------------- レスポンシブ ---------------- */
+/* ---------------- Responsive ---------------- */
 @media (max-width: 480px) {
   .balance-value { font-size: 44px; }
   .app-title { font-size: 20px; }

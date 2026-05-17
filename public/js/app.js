@@ -6,9 +6,12 @@
 
   // ---------- localStorage helpers ----------
   const store = {
-    getGasUrl() { return localStorage.getItem(SK.gasUrl); },
-    getUser()   { return localStorage.getItem(SK.user); },
-    getLabel()  { return localStorage.getItem(SK.label); },
+    getGasUrl()     { return localStorage.getItem(SK.gasUrl); },
+    getUser()       { return localStorage.getItem(SK.user); },
+    getLabel()      { return localStorage.getItem(SK.label); },
+    getParentPw()   { return localStorage.getItem(SK.parentPw); },
+    setParentPw(pw) { localStorage.setItem(SK.parentPw, pw); },
+    clearParentPw() { localStorage.removeItem(SK.parentPw); },
     set({ gasUrl, user, label }) {
       if (gasUrl != null) localStorage.setItem(SK.gasUrl, gasUrl);
       if (user   != null) localStorage.setItem(SK.user, user);
@@ -18,10 +21,11 @@
       localStorage.removeItem(SK.gasUrl);
       localStorage.removeItem(SK.user);
       localStorage.removeItem(SK.label);
+      localStorage.removeItem(SK.parentPw);
     }
   };
 
-  // ---------- 状態 ----------
+  // ---------- State ----------
   const state = {
     user: null,
     label: null,
@@ -121,7 +125,7 @@
       return;
     }
 
-    // 科目ごとにグループ化
+    // Group tasks by subject
     const groups = new Map();
     for (const t of state.tasks) {
       const key = t.subject || 'その他';
@@ -129,16 +133,16 @@
       groups.get(key).push(t);
     }
 
-    // 並び順はシート順そのまま (グループも各タスクも、シートに記載された順)。
-    // Map は挿入順を保持し、state.tasks は GAS から受け取った順 = シート順なので、
-    // groups の構築直後にソートしないだけで自然にシート順を維持できる。
+    // Preserve sheet order for both groups and tasks within each group.
+    // Map keeps insertion order, and state.tasks already comes from GAS in sheet order,
+    // so simply skipping a sort after building `groups` keeps the order intact.
     const sortedKeys = [...groups.keys()];
 
     els.tasksList.innerHTML = sortedKeys.map((key) => {
       const items = groups.get(key);
       const pendingCount = items.filter((t) => t.status === '申請中').length;
       const pendingBadge = pendingCount > 0 ? `<span class="task-group-badge">${pendingCount}件 申請中</span>` : '';
-      // 未完了 + 差し戻しの合計時間 (やる必要のあるタスクの目安)
+      // Sum of estimated time for tasks that still need work (未完了 + 差し戻し).
       const totalMinutes = items
         .filter((t) => t.status !== '承認済み' && t.status !== '申請中')
         .reduce((sum, t) => sum + (Number(t.minutes) || 0), 0);
@@ -161,8 +165,9 @@
 
   function taskItemHtml(t) {
     const statusClass =
-      t.status === '申請中' ? 'status-applied' :
-      t.status === '承認済み' ? 'status-approved' : 'status-pending';
+      t.status === '申請中'   ? 'status-applied' :
+      t.status === '承認済み' ? 'status-approved' :
+      t.status === '差し戻し' ? 'status-rejected' : 'status-pending';
 
     const expired = isExpired(t.expiry);
     const expiryLabel = t.expiry ? `期限: ${formatDate(t.expiry)}${expired ? ' ⚠️' : ''}` : '';
@@ -177,6 +182,8 @@
       `;
     } else if (t.status === '未完了') {
       actionHtml = `<button class="task-btn" data-task-id="${escapeHtml(t.id)}" data-action="apply" ${expired ? 'disabled' : ''}>完了報告</button>`;
+    } else if (t.status === '差し戻し') {
+      actionHtml = `<button class="task-btn resubmit-btn" data-task-id="${escapeHtml(t.id)}" data-action="apply" ${expired ? 'disabled' : ''}>↻ 再提出</button>`;
     } else if (t.status === '申請中') {
       actionHtml = '<span class="task-status-badge">申請中</span>';
     } else if (t.status === '承認済み') {
@@ -262,7 +269,7 @@
     const orig = els.setupSubmit.textContent;
     els.setupSubmit.textContent = '確認中…';
     try {
-      // URL とシート名の疎通確認: getData が通れば SHEET_ID と user 両方OK
+      // Connectivity check for URL + sheet name. If getData succeeds, SHEET_ID and user are both valid.
       const res = await fetch(url, {
         method: 'POST',
         mode: 'cors',
@@ -273,11 +280,11 @@
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'GASエラー');
 
-      // 成功 → 保存
+      // Success → persist
       store.set({ gasUrl: url, user, label: label || '' });
       state.user = user;
       state.label = label || user;
-      // H-4: 子を切り替えたら保護者モードはリセット
+      // H-4: switching child must reset parent mode
       state.parentMode = false;
       state.parentPassword = null;
       state.tasks = data.tasks || [];
@@ -311,6 +318,34 @@
     state.booted = true;
     render();
     await loadData();
+
+    // Handle ?parent=1 query (came from a LINE notification link).
+    // If this device has logged in as parent before, auto-login with the saved password.
+    // Otherwise just open the parent login modal.
+    const params = new URLSearchParams(location.search);
+    if (params.get('parent') === '1') {
+      // Strip ?parent=1 from the URL so a reload does not re-trigger this flow.
+      params.delete('parent');
+      const cleaned = location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash;
+      history.replaceState(null, '', cleaned);
+
+      if (state.parentMode) return;
+      const savedPw = store.getParentPw();
+      if (savedPw) {
+        try {
+          await api('verifyPassword', { password: savedPw });
+          state.parentPassword = savedPw;
+          state.parentMode = true;
+          render();
+          toast('🔓 保護者モード ON', 'success');
+          return;
+        } catch (err) {
+          // Saved password is no longer valid → drop it and fall back to manual login.
+          store.clearParentPw();
+        }
+      }
+      openParentModal();
+    }
   }
 
   async function loadData(force = false) {
@@ -419,6 +454,8 @@
       await api('verifyPassword', { password: pw });
       state.parentPassword = pw;
       state.parentMode = true;
+      // Trust this device as a parent device. Used for auto-login on next ?parent=1 visit.
+      store.setParentPw(pw);
       els.parentModal.classList.add('hidden');
       render();
       toast('🔓 保護者モード ON', 'success');
@@ -480,19 +517,21 @@
     toast._t = setTimeout(() => els.toast.classList.add('hidden'), 2800);
   }
 
-  // 提出報酬・完了報酬の表示。両方ある場合は「提出+10 / 完了+100 pt」、片方だけなら省略。
+  // Render submit/complete rewards. Show both as "提出+10 / 完了+100 pt"; show only one if the other is 0.
   function formatRewards(t) {
     const sub = Number(t.submitReward)   || 0;
     const com = Number(t.completeReward) || Number(t.points) || 0;
-    if (sub > 0 && com > 0) {
+    // 差し戻し means the submit reward was already paid out on the first submission, so hide it.
+    const showSub = sub > 0 && t.status !== '差し戻し';
+    if (showSub && com > 0) {
       return `<span class="task-points">提出+${sub.toLocaleString()} / 完了+${com.toLocaleString()} pt</span>`;
     }
-    if (com > 0) return `<span class="task-points">+${com.toLocaleString()} pt</span>`;
-    if (sub > 0) return `<span class="task-points">提出+${sub.toLocaleString()} pt</span>`;
+    if (com > 0)  return `<span class="task-points">+${com.toLocaleString()} pt</span>`;
+    if (showSub) return `<span class="task-points">提出+${sub.toLocaleString()} pt</span>`;
     return '';
   }
 
-  // 分単位 → "1時間30分" のような表記
+  // Format minutes as "1時間30分" / "30分" etc.
   function formatMinutes(mins) {
     const m = Number(mins) || 0;
     if (m <= 0) return '';

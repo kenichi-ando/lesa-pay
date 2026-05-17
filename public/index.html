@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <!-- レッサーパンダ・マスコット (再利用するためSVGシンボル化) -->
+  <!-- Red panda mascot (reused via SVG symbol) -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <defs>
       <radialGradient id="cheek-grad" cx="0.5" cy="0.5" r="0.5">
@@ -28,34 +28,34 @@
       </radialGradient>
 
       <symbol id="lesser-panda" viewBox="0 0 120 120">
-        <!-- 耳 (内側がふんわり) -->
+        <!-- Ears (soft inner part) -->
         <ellipse cx="26" cy="34" rx="14" ry="15" fill="#b6562d"/>
         <ellipse cx="94" cy="34" rx="14" ry="15" fill="#b6562d"/>
         <ellipse cx="26" cy="36" rx="7" ry="8" fill="#ffd9c2"/>
         <ellipse cx="94" cy="36" rx="7" ry="8" fill="#ffd9c2"/>
-        <!-- 顔 (まんまる) -->
+        <!-- Face (round) -->
         <circle cx="60" cy="66" r="42" fill="url(#face-grad)"/>
-        <!-- 頬のふわふわ白 -->
+        <!-- Fluffy white cheeks -->
         <ellipse cx="28" cy="74" rx="17" ry="20" fill="#fff4e6"/>
         <ellipse cx="92" cy="74" rx="17" ry="20" fill="#fff4e6"/>
-        <!-- 鼻筋 -->
+        <!-- Snout -->
         <path d="M60,34 Q44,48 48,82 Q60,92 72,82 Q76,48 60,34 Z" fill="#fff4e6"/>
-        <!-- 目の周りの茶マスク (涙型に) -->
+        <!-- Brown eye mask (teardrop shape) -->
         <path d="M28,58 Q40,50 50,60 Q47,72 36,72 Q26,68 28,58 Z" fill="#8a3f1f"/>
         <path d="M92,58 Q80,50 70,60 Q73,72 84,72 Q94,68 92,58 Z" fill="#8a3f1f"/>
-        <!-- ぷっくり桜色チーク -->
+        <!-- Pink puffy cheek blush -->
         <circle cx="22" cy="80" r="9" fill="url(#cheek-grad)"/>
         <circle cx="98" cy="80" r="9" fill="url(#cheek-grad)"/>
-        <!-- キラキラ目 -->
+        <!-- Sparkly eyes -->
         <circle cx="42" cy="66" r="6" fill="#1a0e07"/>
         <circle cx="78" cy="66" r="6" fill="#1a0e07"/>
         <circle cx="44" cy="64" r="2" fill="#fff"/>
         <circle cx="80" cy="64" r="2" fill="#fff"/>
         <circle cx="40" cy="68.5" r="1" fill="#fff" opacity="0.7"/>
         <circle cx="76" cy="68.5" r="1" fill="#fff" opacity="0.7"/>
-        <!-- 鼻 (ハート風) -->
+        <!-- Nose (heart-shaped) -->
         <path d="M60,76 Q56,72 56,76 Q56,80 60,82 Q64,80 64,76 Q64,72 60,76 Z" fill="#1a0e07"/>
-        <!-- ニコ口 -->
+        <!-- Smile -->
         <path d="M60,82 Q56,87 52,85 M60,82 Q64,87 68,85" stroke="#1a0e07" stroke-width="2" fill="none" stroke-linecap="round"/>
       </symbol>
 
@@ -147,7 +147,7 @@
     </div>
   </div>
 
-  <!-- 初回セットアップ / 設定リセット用モーダル -->
+  <!-- Modal for first-time setup / settings reset -->
   <div id="setup-modal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-content">
       <svg class="modal-mascot" width="64" height="64"><use href="#lesser-panda"/></svg>
