@@ -90,12 +90,14 @@ await api('myNewAction', { foo: 42 });
 | Key                  | Purpose |
 | -------------------- | ------- |
 | `lesapay_gas_url`    | The Web App URL the user typed during setup |
-| `lesapay_user`       | Sheet name suffix (which child this device represents) |
-| `lesapay_label`      | Display nickname (defaults to `user`) |
+| `lesapay_user`       | Currently selected sheet-name suffix (a key into the GAS `USERS` roster) |
 | `lesapay_parent_pw`  | Last successful parent password — used for `?parent=1` auto-login |
 
-Tasks and history are *not* cached across reloads. Locks live in
-`LockService.getScriptLock()` on the server; the client never tries to reproduce them.
+Tasks and history are *not* cached across reloads. The user roster itself is
+*not* persisted — it is fetched from GAS via `getConfig` on every boot, so
+editing the `USERS` Script Property propagates without redeploying or clearing
+client storage. Locks live in `LockService.getScriptLock()` on the server; the
+client never tries to reproduce them.
 
 ### 4. Side effects (notifications, etc.) belong on the server.
 
@@ -184,8 +186,15 @@ the schema, because the spreadsheet is the parent-facing source of truth.
 - `render*` — pure view layer; no network or mutation.
 - `taskItemHtml(t)` — task row template; XSS-escapes via `escapeHtml`.
 - `bootstrap()` — startup. Reads localStorage, opens setup if needed, otherwise
-  loads data and handles `?parent=1` (auto-login from a LINE link).
-- `refreshServerConfig()` — pulls `STATUS` from GAS in the background.
+  pulls the user roster via `refreshServerConfig`, applies any `?user=<key>`
+  deep-link, then loads data and handles `?parent=1` (auto-login from a LINE
+  link).
+- `refreshServerConfig()` — pulls `STATUS` and the `USERS` roster from GAS.
+  The roster is authoritative: the client mirrors it into `state.serverUsers`
+  and falls back to the active user being the first listed key if the
+  previously selected key is no longer in the list.
+- `labelOf(key)` — resolve a sheet-name key to the display label from
+  `state.serverUsers`. Falls back to the key itself when no roster is loaded.
 
 ## Adding a new action — checklist
 
@@ -246,8 +255,9 @@ about — avoid this in normal flow.
 | ----------------- | :------: | ----- |
 | `SHEET_ID`        | ✅      | Spreadsheet ID |
 | `PARENT_PASSWORD` | ✅      | Parent password |
+| `USERS`           | ✅      | JSON object mapping sheet-name suffix → display label. Example: `{"Light":"ライト","Tiara":"ティアラ"}`. The frontend renders the popover in this exact order. The sheet-name suffix is the part after `課題_` / `履歴_` and is what gets sent over the wire as `req.user`; the label is purely cosmetic (used in the header chip, balance meta, and LINE notification text). Edit this property to add/rename/reorder children — no client redeploy needed; users see the change on next page load. |
 | `LINE_TOKEN`      | ⬜      | LINE Messaging API channel access token. Skip notifications if blank. |
-| `APP_URL`         | ⬜      | App URL (e.g. `https://lesa-pay-v1.web.app/`). If set, LINE notifications append a `?parent=1` deep-link. |
+| `APP_URL`         | ⬜      | App URL (e.g. `https://lesa-pay-v1.web.app/`). If set, LINE notifications append a `?parent=1&user=<key>` deep-link. The `<key>` matches a `USERS` entry, so tapping the link from any device switches the app to the right child before opening the parent login. |
 
 ### OAuth scopes
 
@@ -293,3 +303,6 @@ When reviewing a PR, the things most likely to be wrong:
 4. A new action was added but `requireUser` was set wrong (most actions need
    `true`; `getConfig` and `verifyPassword` are the exceptions).
 5. New side effects added on the frontend instead of in GAS. Move them.
+6. The user roster is server-managed via `USERS`. If you find code that adds
+   or deletes users from the client side, that is a regression — the roster
+   is intentionally read-only on the frontend.
