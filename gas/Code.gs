@@ -11,6 +11,10 @@
  *  3. Project Settings → Script Properties:
  *       SHEET_ID        : Spreadsheet ID
  *       PARENT_PASSWORD : Parent password
+ *       USERS           : (optional) JSON object mapping sheet-name suffix → display label.
+ *                         Example: {"Light":"ライト","Tiara":"ティアラ"}
+ *                         When set, the frontend shows exactly these users (in this order) and
+ *                         hides the "add / delete user" UI. Sheets must already exist.
  *       LINE_TOKEN      : (optional) LINE Messaging API channel access token.
  *                         Skip notifications if unset; broadcast to all friends if set.
  *       APP_URL         : (optional) App URL (e.g. https://lesa-pay-v1.web.app/)
@@ -88,6 +92,62 @@ const HISTORY_LABEL = {
 };
 
 // ====================================================================
+// User-facing message catalog
+//
+// All thrown error messages, LINE notification text, and Logger output live
+// here. Keep this in sync with the frontend STRINGS object in strings.js.
+// Use fmt() to interpolate `{name}` placeholders.
+//
+// NOTE: STATUS values, HISTORY_LABEL, SHEET_PREFIX, and TASK/HISTORY_SCHEMA
+// headers are stored in the spreadsheet (data, not UI), so they live in their
+// own constants above and intentionally are NOT moved here.
+// ====================================================================
+const MSG = {
+  // Errors thrown back to the client (frontend renders them verbatim).
+  errUnsupportedAction:    '未対応のアクション: {action}',
+  errInvalidUserParam:     '不正な user パラメータ: {user}',
+  errSheetIdNotSet:        'SHEET_ID が未設定です',
+  errParentPwNotSet:       'PARENT_PASSWORD が未設定です',
+  errPasswordWrong:        'パスワードが違います',
+  errSheetMissing:         'シートがありません: {name}',
+  errUserSheetsNotFound:   'シートが見つかりません: {tasks} / {history}',
+  errTaskNotFound:         '課題が見つかりません',
+  errTaskRowNotFound:      '該当する課題が見つかりません',
+  errTaskIdMissing:        'taskId が未指定',
+  errAlreadyApplied:       'すでに申請中です',
+  errAlreadyApproved:      'すでに承認済みです',
+  errExpired:              '期限切れです',
+  errNotAppliedTask:       '申請中の課題ではありません (現在: {status})',
+  errCannotRejectApproved: '承認済みの課題は訂正依頼できません',
+  errInvalidAmount:        '金額が不正です',
+  errInsufficientBalance:  '残高不足です (現在 {total} pt)',
+  errSetupSheetsUsage:     'user が未指定。例: setupSheets("ライト")',
+
+  // LINE notification text (subject is wrapped with 【】 by notify()).
+  notifyOpenInParentMode:    '👨‍👩‍👧 保護者モードで開く:',
+  notifySubjectApply:        '{user}から完了報告',
+  notifySubjectCashout:      '{user}のポイント消費',
+  notifyApplyBodyHeader:     '{user} が「{label}」を完了報告しました。',
+  notifyApplyBodySubmit:     '提出報酬: {pt} pt (付与済み)',
+  notifyApplyBodyComplete:   '完了報酬: {pt} pt (承認後に付与)',
+  notifyApplyBodyFooter:     'アプリで承認してください。',
+  notifyCashoutBody:         '{user} が {amount} pt を使いました。\n残高: {balance} pt',
+
+  // Logger.log diagnostics (operator-facing).
+  logUsersParseFailed:    'USERS の JSON パースに失敗: {error}',
+  logLineSendFailed:      'LINE送信失敗 ({code}): {body}',
+  logLineSendException:   'LINE送信失敗: {error}'
+};
+
+// Render a template like '{name} さん' with the given vars.
+function fmt(tpl, vars) {
+  if (!vars) return tpl;
+  return String(tpl).replace(/\{(\w+)\}/g, function (m, k) {
+    return vars[k] != null ? vars[k] : '';
+  });
+}
+
+// ====================================================================
 // Sheet name + user validation
 // ====================================================================
 
@@ -128,9 +188,9 @@ function doPost(e) {
   try {
     const req = JSON.parse(e.postData.contents);
     const def = ACTIONS[req.action];
-    if (!def) throw new Error('未対応のアクション: ' + req.action);
+    if (!def) throw new Error(fmt(MSG.errUnsupportedAction, { action: req.action }));
     if (def.requireUser && !isValidUser(req.user)) {
-      throw new Error('不正な user パラメータ: ' + req.user);
+      throw new Error(fmt(MSG.errInvalidUserParam, { user: req.user }));
     }
     const result = def.handler(req);
     return jsonOut({ ok: true, ...result });
@@ -155,14 +215,14 @@ function jsonOut(obj) {
 
 function getSpreadsheet() {
   const id = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
-  if (!id) throw new Error('SHEET_ID が未設定です');
+  if (!id) throw new Error(MSG.errSheetIdNotSet);
   return SpreadsheetApp.openById(id);
 }
 
 function checkPassword(password) {
   const expected = PropertiesService.getScriptProperties().getProperty('PARENT_PASSWORD');
-  if (!expected) throw new Error('PARENT_PASSWORD が未設定です');
-  if (password !== expected) throw new Error('パスワードが違います');
+  if (!expected) throw new Error(MSG.errParentPwNotSet);
+  if (password !== expected) throw new Error(MSG.errPasswordWrong);
 }
 
 // Send a notification via LINE Messaging API broadcast (to everyone who friended the official account).
@@ -188,7 +248,7 @@ function notify(targetUser, subject, body) {
     if (targetUser) params.push('user=' + encodeURIComponent(targetUser));
     const sep = base.indexOf('?') >= 0 ? '&' : '?';
     const url = base + sep + params.join('&');
-    message += '\n\n👨‍👩‍👧 保護者モードで開く:\n' + url;
+    message += '\n\n' + MSG.notifyOpenInParentMode + '\n' + url;
   }
   try {
     const res = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/broadcast', {
@@ -202,10 +262,10 @@ function notify(targetUser, subject, body) {
     });
     const code = res.getResponseCode();
     if (code !== 200) {
-      Logger.log('LINE送信失敗 (' + code + '): ' + res.getContentText());
+      Logger.log(fmt(MSG.logLineSendFailed, { code: code, body: res.getContentText() }));
     }
   } catch (err) {
-    Logger.log('LINE送信失敗: ' + err.message);
+    Logger.log(fmt(MSG.logLineSendException, { error: err.message }));
   }
 }
 
@@ -213,7 +273,7 @@ function notify(targetUser, subject, body) {
 function getTaskSheet(ss, user) {
   const name = tasksSheetName(user);
   const sheet = ss.getSheetByName(name);
-  if (!sheet) throw new Error('シートがありません: ' + name);
+  if (!sheet) throw new Error(fmt(MSG.errSheetMissing, { name: name }));
   return sheet;
 }
 
@@ -221,7 +281,7 @@ function getTaskSheet(ss, user) {
 function getHistorySheet(ss, user) {
   const name = historySheetName(user);
   const sheet = ss.getSheetByName(name);
-  if (!sheet) throw new Error('シートがありません: ' + name);
+  if (!sheet) throw new Error(fmt(MSG.errSheetMissing, { name: name }));
   return sheet;
 }
 
@@ -241,14 +301,14 @@ function withLock(fn) {
 // Throws if no row matches.
 function findTaskRow(sheet, taskId, fn) {
   const lastRow = sheet.getLastRow();
-  if (lastRow < 2) throw new Error('課題が見つかりません');
+  if (lastRow < 2) throw new Error(MSG.errTaskNotFound);
   const values = sheet.getRange(2, 1, lastRow - 1, TASK_COL_COUNT).getValues();
   for (let i = 0; i < values.length; i++) {
     if (String(values[i][TASK_COL.ID]) === String(taskId)) {
       return fn(values[i], i + 2, sheet); // i + 2 is the 1-based row index
     }
   }
-  throw new Error('該当する課題が見つかりません');
+  throw new Error(MSG.errTaskRowNotFound);
 }
 
 // Update the status (column B) of a task row.
@@ -261,16 +321,40 @@ function setTaskStatus(sheet, rowIndex, status) {
 // ====================================================================
 
 // Return values that the frontend would otherwise have to duplicate.
-// Currently just status names; expand if anything else becomes shared.
+// `users` is the registered child list pulled from the USERS Script Property
+// (JSON object: {key: label}). Returned as an ordered array so the frontend
+// preserves Script-Property insertion order.
 function handleGetConfig() {
-  return { status: STATUS };
+  return { status: STATUS, users: readUsersConfig() };
+}
+
+// Parse the USERS Script Property. Returns an ordered array of {key, label} objects,
+// or an empty array if USERS is unset / malformed (the frontend then falls back to
+// its own localStorage-managed list).
+function readUsersConfig() {
+  const raw = PropertiesService.getScriptProperties().getProperty('USERS');
+  if (!raw) return [];
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    Logger.log(fmt(MSG.logUsersParseFailed, { error: err.message }));
+    return [];
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return [];
+  return Object.keys(parsed)
+    .filter((k) => typeof k === 'string' && k.length > 0)
+    .map((k) => ({ key: k, label: String(parsed[k] == null ? k : parsed[k]) }));
 }
 
 function handleGetData(user) {
   const ss = getSpreadsheet();
   // C-4: reject typo'd user names (sheet not found) at setup time.
   if (!ss.getSheetByName(tasksSheetName(user)) || !ss.getSheetByName(historySheetName(user))) {
-    throw new Error('シートが見つかりません: 課題_' + user + ' / 履歴_' + user);
+    throw new Error(fmt(MSG.errUserSheetsNotFound, {
+      tasks:   tasksSheetName(user),
+      history: historySheetName(user)
+    }));
   }
   return {
     tasks:   readTasks(ss, tasksSheetName(user)),
@@ -279,21 +363,21 @@ function handleGetData(user) {
 }
 
 function handleApplyTask(user, taskId) {
-  if (!taskId) throw new Error('taskId が未指定');
+  if (!taskId) throw new Error(MSG.errTaskIdMissing);
   const ss = getSpreadsheet();
   const sheet = getTaskSheet(ss, user);
 
   const notifyPayload = withLock(() => {
     return findTaskRow(sheet, taskId, (row, rowIndex) => {
       const status = row[TASK_COL.STATUS] || STATUS.PENDING;
-      if (status === STATUS.APPLIED)  throw new Error('すでに申請中です');
-      if (status === STATUS.APPROVED) throw new Error('すでに承認済みです');
+      if (status === STATUS.APPLIED)  throw new Error(MSG.errAlreadyApplied);
+      if (status === STATUS.APPROVED) throw new Error(MSG.errAlreadyApproved);
 
       const expiry = row[TASK_COL.EXPIRY];
       if (expiry !== '' && expiry != null) {
         const d = isDateLike(expiry) ? new Date(expiry.getTime()) : new Date(expiry);
         if (!isNaN(d.getTime()) && d < truncDate(new Date())) {
-          throw new Error('期限切れです');
+          throw new Error(MSG.errExpired);
         }
       }
 
@@ -323,17 +407,34 @@ function handleApplyTask(user, taskId) {
   });
 
   // Notify after releasing the lock so a slow notification does not extend the lock.
-  notify(user, user + 'から完了報告', buildApplyNotifyBody(user, notifyPayload));
+  // Use the configured display label (USERS) for human-readable LINE messages,
+  // but keep `user` (= sheet-name key) in the deep link so the device switches
+  // to the right child via ?user=<key>.
+  const displayName = labelFor(user);
+  notify(user, fmt(MSG.notifySubjectApply, { user: displayName }), buildApplyNotifyBody(displayName, notifyPayload));
   return { taskId };
 }
 
-function buildApplyNotifyBody(user, p) {
-  let body = user + ' が「' + (p.subject ? p.subject + ' ' : '') + p.title + '」を完了報告しました。\n';
+function buildApplyNotifyBody(displayName, p) {
+  const taskLabel = (p.subject ? p.subject + ' ' : '') + p.title;
+  const lines = [fmt(MSG.notifyApplyBodyHeader, { user: displayName, label: taskLabel })];
   if (p.submitReward > 0) {
-    body += '提出報酬: ' + p.submitReward + ' pt (付与済み)\n';
+    lines.push(fmt(MSG.notifyApplyBodySubmit, { pt: p.submitReward }));
   }
-  body += '完了報酬: ' + p.completeReward + ' pt (承認後に付与)\n\nアプリで承認してください。';
-  return body;
+  lines.push(fmt(MSG.notifyApplyBodyComplete, { pt: p.completeReward }));
+  lines.push('');
+  lines.push(MSG.notifyApplyBodyFooter);
+  return lines.join('\n');
+}
+
+// Resolve the human-readable display name for a sheet-name key.
+// Falls back to the key itself when USERS is unset or the key is not listed.
+function labelFor(userKey) {
+  const list = readUsersConfig();
+  for (let i = 0; i < list.length; i++) {
+    if (list[i].key === userKey) return list[i].label;
+  }
+  return userKey;
 }
 
 function handleVerifyPassword(password) {
@@ -343,7 +444,7 @@ function handleVerifyPassword(password) {
 
 function handleApproveTask(user, taskId, password) {
   checkPassword(password);
-  if (!taskId) throw new Error('taskId が未指定');
+  if (!taskId) throw new Error(MSG.errTaskIdMissing);
 
   const ss = getSpreadsheet();
   const taskSheet = getTaskSheet(ss, user);
@@ -353,8 +454,8 @@ function handleApproveTask(user, taskId, password) {
     return findTaskRow(taskSheet, taskId, (row, rowIndex) => {
       const status = row[TASK_COL.STATUS] || STATUS.PENDING;
       // C-1: only APPLIED tasks can be approved.
-      if (status === STATUS.APPROVED) throw new Error('すでに承認済みです');
-      if (status !== STATUS.APPLIED)  throw new Error('申請中の課題ではありません (現在: ' + status + ')');
+      if (status === STATUS.APPROVED) throw new Error(MSG.errAlreadyApproved);
+      if (status !== STATUS.APPLIED)  throw new Error(fmt(MSG.errNotAppliedTask, { status: status }));
 
       const subject = String(row[TASK_COL.SUBJECT] || '');
       const title   = String(row[TASK_COL.TITLE]   || '');
@@ -373,7 +474,7 @@ function handleApproveTask(user, taskId, password) {
 
 function handleRejectTask(user, taskId, password) {
   checkPassword(password);
-  if (!taskId) throw new Error('taskId が未指定');
+  if (!taskId) throw new Error(MSG.errTaskIdMissing);
 
   const sheet = getTaskSheet(getSpreadsheet(), user);
 
@@ -381,7 +482,7 @@ function handleRejectTask(user, taskId, password) {
     return findTaskRow(sheet, taskId, (row, rowIndex) => {
       const status = row[TASK_COL.STATUS] || STATUS.PENDING;
       // C-2: prevent rejecting an already-approved task (history already credited; stop double-pay).
-      if (status === STATUS.APPROVED) throw new Error('承認済みの課題は訂正依頼できません');
+      if (status === STATUS.APPROVED) throw new Error(MSG.errCannotRejectApproved);
       // Move to REJECTED (marker that suppresses the submit reward on resubmit).
       setTaskStatus(sheet, rowIndex, STATUS.REJECTED);
       return { taskId };
@@ -392,7 +493,7 @@ function handleRejectTask(user, taskId, password) {
 function handleCashout(user, amount, password) {
   checkPassword(password);
   const amt = Number(amount);
-  if (!isFinite(amt) || amt <= 0) throw new Error('金額が不正です');
+  if (!isFinite(amt) || amt <= 0) throw new Error(MSG.errInvalidAmount);
 
   const ss = getSpreadsheet();
   const sheet = getHistorySheet(ss, user);
@@ -401,15 +502,16 @@ function handleCashout(user, amount, password) {
   const result = withLock(() => {
     const total = readHistory(ss, sheetName)
       .reduce((s, h) => s + (Number(h.points) || 0), 0);
-    if (amt > total) throw new Error('残高不足です (現在 ' + total + ' pt)');
+    if (amt > total) throw new Error(fmt(MSG.errInsufficientBalance, { total: total }));
     sheet.appendRow([formatDateTime(new Date()), HISTORY_LABEL.CASHOUT, -amt]);
     return { amount: amt, balance: total - amt };
   });
 
+  const displayName = labelFor(user);
   notify(
     user,
-    user + 'のポイント消費',
-    user + ' が ' + amt + ' pt を使いました。\n残高: ' + result.balance + ' pt'
+    fmt(MSG.notifySubjectCashout, { user: displayName }),
+    fmt(MSG.notifyCashoutBody, { user: displayName, amount: amt, balance: result.balance })
   );
   return result;
 }
@@ -530,7 +632,7 @@ function truncDate(d) {
  *   function tmp() { setupSheets('<child name>'); }
  */
 function setupSheets(user) {
-  if (!user) throw new Error('user が未指定。例: setupSheets("ライト")');
+  if (!user) throw new Error(MSG.errSetupSheetsUsage);
   const ss = getSpreadsheet();
   ensureSheet(ss, tasksSheetName(user),   TASK_HEADERS);
   ensureSheet(ss, historySheetName(user), HISTORY_HEADERS);

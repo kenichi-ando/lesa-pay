@@ -66,7 +66,7 @@
     <h1 class="app-title">
       <svg class="app-logo" width="36" height="36"><use href="#lesser-panda"/></svg>
       <span class="app-title-text" data-i18n="app.title"></span>
-      <span id="user-label" class="user-label hidden"></span>
+      <button id="user-label" class="user-label hidden" type="button" data-i18n-attr-aria-label="header.switchUser"></button>
     </h1>
     <div class="header-actions">
       <button id="settings-btn" class="parent-btn" data-i18n-attr-aria-label="header.settings">
@@ -75,6 +75,11 @@
       <button id="parent-mode-btn" class="parent-btn" data-i18n-attr-aria-label="header.parentMode">
         <span class="parent-icon">🔑</span>
       </button>
+    </div>
+
+    <div id="user-popover" class="user-popover hidden" role="menu" aria-labelledby="user-label">
+      <div class="user-popover-title" data-i18n="users.switcherTitle"></div>
+      <ul id="user-popover-list" class="user-popover-list"></ul>
     </div>
   </header>
 
@@ -156,12 +161,6 @@
 
       <label class="setup-label" data-i18n="setup.gasUrlLabel"></label>
       <input type="text" id="setup-gas-url" class="modal-input" data-i18n-attr-placeholder="setup.gasUrlPlaceholder" autocomplete="off" />
-
-      <label class="setup-label" data-i18n="setup.userLabel"></label>
-      <input type="text" id="setup-user" class="modal-input" data-i18n-attr-placeholder="setup.userPlaceholder" autocomplete="off" />
-
-      <label class="setup-label" data-i18n="setup.labelLabel"></label>
-      <input type="text" id="setup-label" class="modal-input" data-i18n-attr-placeholder="setup.labelPlaceholder" autocomplete="off" />
 
       <div class="modal-actions">
         <button id="setup-cancel-btn" class="btn btn-secondary hidden" data-i18n="setup.cancel"></button>

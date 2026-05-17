@@ -13,7 +13,8 @@ window.LESAPAY_STRINGS = {
     parentMode: '保護者モード',
     parentModeOn: '🔓 保護者モード',
     lock: 'ロック',
-    refresh: '更新'
+    refresh: '更新',
+    switchUser: 'ユーザを切り替える'
   },
 
   balance: {
@@ -37,9 +38,9 @@ window.LESAPAY_STRINGS = {
     reject: '✏️ 訂正依頼',
     appliedBadge: '申請中',
     approvedBadge: '✓ 承認',
-    confirmApply: '完了したことを報告しますか？',
-    confirmApprove: 'この課題を承認してポイントを付与しますか？',
-    confirmReject: 'この課題を訂正依頼します(未完了に戻して、子にやり直してもらう)。よろしいですか？',
+    confirmApply: '完了したことを報告しますか?',
+    confirmApprove: 'この課題を承認してポイントを付与しますか?',
+    confirmReject: 'この課題を訂正依頼します(未完了に戻して、子にやり直してもらう)。よろしいですか?',
     toastApplied: '🎉 報告しました!承認をまってね',
     toastApproved: '✓ 承認しました',
     toastRejected: '訂正依頼しました',
@@ -83,20 +84,20 @@ window.LESAPAY_STRINGS = {
 
   setup: {
     title: 'はじめての設定',
-    desc: 'この端末で使う情報を設定します',
+    desc: 'GAS Web App URL を設定してください',
     gasUrlLabel: 'GAS Web App URL',
     gasUrlPlaceholder: 'https://script.google.com/macros/s/.../exec',
-    userLabel: 'シート名(「課題_◯◯」「履歴_◯◯」の◯◯部分)',
-    userPlaceholder: 'ライト',
-    labelLabel: '画面に表示する愛称(任意・空欄ならシート名と同じ)',
-    labelPlaceholder: 'ライト',
     save: '保存',
     checking: '確認中…',
     cancel: 'キャンセル',
-    needUrl: 'GAS URLを入力してください',
-    needUser: 'シート名(例: ライト)を入力してください',
+    needUrl: 'GAS URL を入力してください',
     saved: '設定を保存しました',
-    urlResetPrompt: 'GAS URL を再設定しますか?'
+    needUsers: 'GAS の Script Property USERS にユーザを設定してください'
+  },
+
+  users: {
+    switcherTitle: 'ユーザを切り替え',
+    switchedToast: '{name} に切り替えました'
   },
 
   time: {
@@ -106,7 +107,7 @@ window.LESAPAY_STRINGS = {
   },
 
   errors: {
-    gasUrlNotSet: 'GAS URLが未設定です',
+    gasUrlNotSet: 'GAS URL が未設定です',
     network: '通信エラー',
     unknown: '不明なエラー'
   }

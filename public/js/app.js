@@ -16,7 +16,6 @@
   };
 
   // Translate "foo.bar" → STRINGS.foo.bar. With `vars` it interpolates `{name}`.
-  // Returns the key itself if missing (helps spot typos during dev).
   function tr(key, vars) {
     const v = key.split('.').reduce((o, k) => (o == null ? o : o[k]), STRINGS);
     if (typeof v !== 'string') return key;
@@ -25,7 +24,6 @@
   }
 
   // Replace text/attrs annotated with data-i18n / data-i18n-attr-*.
-  // Run once on load so the static HTML reflects STRINGS.
   function applyI18n(root) {
     root = root || document;
     root.querySelectorAll('[data-i18n]').forEach((el) => {
@@ -42,30 +40,23 @@
   }
 
   // ---------- localStorage helpers ----------
+  // The user list itself is owned by GAS (Script Property USERS). We only
+  // remember the GAS URL and the most recently selected user key.
   const store = {
     getGasUrl()     { return localStorage.getItem(SK.gasUrl); },
+    setGasUrl(url)  { localStorage.setItem(SK.gasUrl, url); },
     getUser()       { return localStorage.getItem(SK.user); },
-    getLabel()      { return localStorage.getItem(SK.label); },
+    setUser(user)   { localStorage.setItem(SK.user, user); },
+    clearUser()     { localStorage.removeItem(SK.user); },
     getParentPw()   { return localStorage.getItem(SK.parentPw); },
     setParentPw(pw) { localStorage.setItem(SK.parentPw, pw); },
-    clearParentPw() { localStorage.removeItem(SK.parentPw); },
-    set({ gasUrl, user, label }) {
-      if (gasUrl != null) localStorage.setItem(SK.gasUrl, gasUrl);
-      if (user   != null) localStorage.setItem(SK.user, user);
-      if (label  != null) localStorage.setItem(SK.label, label);
-    },
-    clearAll() {
-      localStorage.removeItem(SK.gasUrl);
-      localStorage.removeItem(SK.user);
-      localStorage.removeItem(SK.label);
-      localStorage.removeItem(SK.parentPw);
-    }
+    clearParentPw() { localStorage.removeItem(SK.parentPw); }
   };
 
   // ---------- State ----------
   const state = {
-    user: null,
-    label: null,
+    user: null,            // currently selected user key (sheet-name suffix)
+    serverUsers: [],       // [{key, label}] from GAS USERS
     parentMode: false,
     parentPassword: null,
     tasks: [],
@@ -76,12 +67,20 @@
 
   let dataCache = null;
 
+  function userKeys()    { return state.serverUsers.map((u) => u.key); }
+  function labelOf(key)  {
+    const found = state.serverUsers.find((u) => u.key === key);
+    return found ? found.label : key;
+  }
+
   // ---------- DOM refs ----------
   const $ = (id) => document.getElementById(id);
   const els = {
     parentBtn: $('parent-mode-btn'),
     settingsBtn: $('settings-btn'),
     userLabel: $('user-label'),
+    userPopover: $('user-popover'),
+    userPopoverList: $('user-popover-list'),
     parentPanel: $('parent-panel'),
     parentLogout: $('parent-logout-btn'),
     cashoutBtn: $('cashout-btn'),
@@ -102,8 +101,6 @@
     cashoutError: $('cashout-error'),
     setupModal: $('setup-modal'),
     setupGasUrl: $('setup-gas-url'),
-    setupUser: $('setup-user'),
-    setupLabel: $('setup-label'),
     setupSubmit: $('setup-submit-btn'),
     setupCancel: $('setup-cancel-btn'),
     setupError: $('setup-error'),
@@ -128,22 +125,42 @@
     return data;
   }
 
-  // Pull server-defined values (e.g. STATUS) and merge into local memory.
-  // Best-effort: failures are silent because the in-code fallback still works.
+  // Pull STATUS + USERS roster from the server. The roster is authoritative;
+  // we always overwrite state.serverUsers, then make sure the active user
+  // still appears in it (otherwise switch to the first listed user).
   async function refreshServerConfig() {
-    try {
-      const res = await api('getConfig');
-      if (res && res.status) STATUS = res.status;
-      render();
-    } catch (_) { /* fall back to local defaults */ }
+    const res = await api('getConfig');
+    if (res && res.status) STATUS = res.status;
+    const incoming = Array.isArray(res && res.users) ? res.users : [];
+    state.serverUsers = incoming.filter((u) => u && typeof u.key === 'string' && u.key);
+    reconcileActiveUser();
+  }
+
+  function reconcileActiveUser() {
+    const keys = userKeys();
+    if (keys.length === 0) {
+      state.user = null;
+      store.clearUser();
+      return;
+    }
+    if (!state.user || !keys.includes(state.user)) {
+      state.user = keys[0];
+      store.setUser(state.user);
+      // The active identity changed → drop cached state and parent mode.
+      state.parentMode = false;
+      state.parentPassword = null;
+      dataCache = null;
+      state.tasks = [];
+      state.history = [];
+    }
   }
 
   // ---------- Render ----------
   function render() {
     els.parentPanel.classList.toggle('hidden', !state.parentMode);
     els.parentBtn.classList.toggle('active', state.parentMode);
-    if (state.label) {
-      els.userLabel.textContent = state.label;
+    if (state.user) {
+      els.userLabel.textContent = labelOf(state.user);
       els.userLabel.classList.remove('hidden');
     } else {
       els.userLabel.classList.add('hidden');
@@ -156,7 +173,7 @@
   function renderBalance() {
     const total = state.history.reduce((sum, h) => sum + (Number(h.points) || 0), 0);
     els.balance.textContent = total.toLocaleString();
-    const name = state.label || '';
+    const name = state.user ? labelOf(state.user) : '';
     els.balanceMeta.textContent = state.loading
       ? tr('balance.updating')
       : (name ? tr('balance.metaWithName', { name, count: state.history.length })
@@ -168,8 +185,6 @@
       els.tasksList.innerHTML = `<div class="empty-state">${escapeHtml(tr('tasks.loading'))}</div>`;
       return;
     }
-    // Hide approved tasks from the list (they live on in the spreadsheet
-    // and in the history feed). The active list only shows pending work.
     const visible = state.tasks.filter((t) => t.status !== STATUS.APPROVED);
 
     if (visible.length === 0) {
@@ -177,7 +192,6 @@
       return;
     }
 
-    // Group tasks by subject
     const groups = new Map();
     for (const t of visible) {
       const key = t.subject || tr('tasks.otherGroup');
@@ -185,16 +199,12 @@
       groups.get(key).push(t);
     }
 
-    // Preserve sheet order for both groups and tasks within each group.
-    // Map keeps insertion order, and state.tasks already comes from GAS in sheet order,
-    // so simply skipping a sort after building `groups` keeps the order intact.
     const sortedKeys = [...groups.keys()];
 
     els.tasksList.innerHTML = sortedKeys.map((key) => {
       const items = groups.get(key);
       const pendingCount = items.filter((t) => t.status === STATUS.APPLIED).length;
       const pendingBadge = pendingCount > 0 ? `<span class="task-group-badge">${escapeHtml(tr('tasks.pendingCount', { n: pendingCount }))}</span>` : '';
-      // Sum of estimated time for tasks that still need work (PENDING + REJECTED).
       const totalMinutes = items
         .filter((t) => t.status !== STATUS.APPROVED && t.status !== STATUS.APPLIED)
         .reduce((sum, t) => sum + (Number(t.minutes) || 0), 0);
@@ -288,32 +298,75 @@
     }).join('');
   }
 
+  // ---------- User popover ----------
+  function renderUserPopover() {
+    const list = state.serverUsers;
+    if (list.length === 0) {
+      // GAS USERS not configured — point the user to the setup screen.
+      els.userPopoverList.innerHTML = `<li class="user-popover-empty">${escapeHtml(tr('setup.needUsers'))}</li>`;
+      return;
+    }
+    els.userPopoverList.innerHTML = list.map(({ key, label }) => {
+      const isCurrent = key === state.user;
+      return `
+        <li class="user-popover-item ${isCurrent ? 'is-current' : ''}">
+          <button class="user-popover-pick" type="button" data-user="${escapeHtml(key)}">
+            <span class="user-popover-mark">${isCurrent ? '✓' : ''}</span>
+            <span class="user-popover-name">${escapeHtml(label)}</span>
+          </button>
+        </li>
+      `;
+    }).join('');
+    els.userPopoverList.querySelectorAll('[data-user]').forEach((btn) => {
+      btn.addEventListener('click', () => switchUser(btn.dataset.user));
+    });
+  }
+
+  function openUserPopover() {
+    renderUserPopover();
+    els.userPopover.classList.remove('hidden');
+  }
+
+  function closeUserPopover() {
+    els.userPopover.classList.add('hidden');
+  }
+
+  function toggleUserPopover() {
+    if (els.userPopover.classList.contains('hidden')) openUserPopover();
+    else closeUserPopover();
+  }
+
+  async function switchUser(key) {
+    if (!key || key === state.user) {
+      closeUserPopover();
+      return;
+    }
+    closeUserPopover();
+    state.user = key;
+    store.setUser(key);
+    state.parentMode = false;
+    state.parentPassword = null;
+    dataCache = null;
+    state.tasks = [];
+    state.history = [];
+    render();
+    toast(tr('users.switchedToast', { name: labelOf(key) }), 'success');
+    await loadData(true);
+  }
+
   // ---------- Setup ----------
   function openSetup({ initial }) {
     els.setupGasUrl.value = store.getGasUrl() || '';
-    els.setupUser.value = store.getUser() || '';
-    els.setupLabel.value = store.getLabel() || '';
     els.setupError.classList.add('hidden');
     els.setupCancel.classList.toggle('hidden', !!initial);
     els.setupModal.classList.remove('hidden');
-    setTimeout(() => {
-      if (!els.setupGasUrl.value) els.setupGasUrl.focus();
-      else if (!els.setupUser.value) els.setupUser.focus();
-      else els.setupLabel.focus();
-    }, 50);
+    setTimeout(() => els.setupGasUrl.focus(), 50);
   }
 
   async function submitSetup() {
     const url = els.setupGasUrl.value.trim();
-    const user = els.setupUser.value.trim();
-    const label = els.setupLabel.value.trim();
     if (!url) {
       els.setupError.textContent = tr('setup.needUrl');
-      els.setupError.classList.remove('hidden');
-      return;
-    }
-    if (!user) {
-      els.setupError.textContent = tr('setup.needUser');
       els.setupError.classList.remove('hidden');
       return;
     }
@@ -321,31 +374,36 @@
     const orig = els.setupSubmit.textContent;
     els.setupSubmit.textContent = tr('setup.checking');
     try {
-      // Connectivity check for URL + sheet name. If getData succeeds, SHEET_ID and user are both valid.
+      // getConfig also returns the USERS roster, so we both validate the URL
+      // and learn which children to show in one round-trip.
       const res = await fetch(url, {
         method: 'POST',
         mode: 'cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'getData', user })
+        body: JSON.stringify({ action: 'getConfig' })
       });
       if (!res.ok) throw new Error(tr('errors.network') + ' (' + res.status + ')');
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || tr('errors.unknown'));
 
-      // Success → persist
-      store.set({ gasUrl: url, user, label: label || '' });
-      state.user = user;
-      state.label = label || user;
-      // H-4: switching child must reset parent mode
-      state.parentMode = false;
-      state.parentPassword = null;
-      state.tasks = data.tasks || [];
-      state.history = data.history || [];
-      dataCache = { ts: Date.now(), tasks: state.tasks, history: state.history };
-      state.booted = true;
+      const incoming = Array.isArray(data.users) ? data.users : [];
+      const filtered = incoming.filter((u) => u && typeof u.key === 'string' && u.key);
+      if (filtered.length === 0) {
+        // GAS reachable but USERS Script Property is unset/empty.
+        throw new Error(tr('setup.needUsers'));
+      }
+
+      store.setGasUrl(url);
+      if (data.status) STATUS = data.status;
+      state.serverUsers = filtered;
+      reconcileActiveUser();
+
       els.setupModal.classList.add('hidden');
-      render();
       toast(tr('setup.saved'), 'success');
+
+      state.booted = true;
+      render();
+      await loadData(true);
     } catch (err) {
       els.setupError.textContent = err.message;
       els.setupError.classList.remove('hidden');
@@ -361,35 +419,52 @@
 
   // ---------- Bootstrap ----------
   async function bootstrap() {
-    if (!store.getGasUrl() || !store.getUser()) {
+    if (!store.getGasUrl()) {
       openSetup({ initial: true });
       return;
     }
-    // ?user=<name> from a LINE link switches this device to that child before loading.
-    // The change is persisted to localStorage so a refresh keeps the new selection.
-    const params = new URLSearchParams(location.search);
-    const targetUser = params.get('user');
-    if (targetUser && targetUser !== store.getUser()) {
-      store.set({ user: targetUser, label: targetUser });
-    }
 
-    state.user = store.getUser();
-    state.label = store.getLabel() || state.user;
-    state.booted = true;
+    // Tentative active user from localStorage; refreshServerConfig may override.
+    const stored = store.getUser();
+    if (stored) state.user = stored;
+
+    // Preview render so the UI is not blank during the network call.
     render();
 
-    // Fetch server-side config (STATUS values) in the background.
-    // Run in parallel with loadData; the fallback STATUS is correct enough
-    // until this resolves, and a second render() picks up any updates.
-    refreshServerConfig();
+    try {
+      await refreshServerConfig();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
 
+    if (state.serverUsers.length === 0) {
+      // USERS not configured — surface the setup screen so the operator can fix it.
+      openSetup({ initial: false });
+      els.setupError.textContent = tr('setup.needUsers');
+      els.setupError.classList.remove('hidden');
+      return;
+    }
+
+    // Honor LINE deep-link ?user=<key> AFTER the server roster is known so we
+    // never persist a key that GAS doesn't recognise.
+    const params = new URLSearchParams(location.search);
+    const linkUser = params.get('user');
+    if (linkUser && userKeys().includes(linkUser) && linkUser !== state.user) {
+      state.user = linkUser;
+      store.setUser(linkUser);
+      // Different child → reset transient state.
+      state.parentMode = false;
+      state.parentPassword = null;
+      dataCache = null;
+      state.tasks = [];
+      state.history = [];
+    }
+
+    state.booted = true;
+    render();
     await loadData();
 
-    // Handle ?parent=1 query (came from a LINE notification link).
-    // If this device has logged in as parent before, auto-login with the saved password.
-    // Otherwise just open the parent login modal.
     if (params.get('parent') === '1') {
-      // Strip ?parent / ?user from the URL so a reload does not re-trigger this flow.
       params.delete('parent');
       params.delete('user');
       const cleaned = location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash;
@@ -406,13 +481,12 @@
           toast(tr('parent.modeOn'), 'success');
           return;
         } catch (err) {
-          // Saved password is no longer valid → drop it and fall back to manual login.
           store.clearParentPw();
         }
       }
       openParentModal();
-    } else if (targetUser) {
-      // ?user=<name> alone (no ?parent=1): clean up the URL too.
+    } else if (linkUser) {
+      // ?user=<key> alone (no ?parent=1): clean up the URL too.
       params.delete('user');
       const cleaned = location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash;
       history.replaceState(null, '', cleaned);
@@ -420,7 +494,7 @@
   }
 
   async function loadData(force = false) {
-    if (!state.booted) return;
+    if (!state.booted || !state.user) return;
     const now = Date.now();
     if (!force && dataCache && now - dataCache.ts < CONFIG.CACHE_TTL_SEC * 1000) {
       state.tasks = dataCache.tasks;
@@ -525,7 +599,6 @@
       await api('verifyPassword', { password: pw });
       state.parentPassword = pw;
       state.parentMode = true;
-      // Trust this device as a parent device. Used for auto-login on next ?parent=1 visit.
       store.setParentPw(pw);
       els.parentModal.classList.add('hidden');
       render();
@@ -588,17 +661,13 @@
     toast._t = setTimeout(() => els.toast.classList.add('hidden'), 2800);
   }
 
-  // Render submit/complete rewards. Show both side-by-side; show only one if the other is 0.
   function formatRewards(t) {
     const sub = Number(t.submitReward)   || 0;
     const com = Number(t.completeReward) || Number(t.points) || 0;
-    // REJECTED means the submit reward was already paid out on the first submission, so hide it.
     const showSub = sub > 0 && t.status !== STATUS.REJECTED;
     if (showSub && com > 0) {
       return `<span class="task-points">${escapeHtml(tr('tasks.rewardBoth', { submit: sub.toLocaleString(), complete: com.toLocaleString() }))}</span>`;
     }
-    // For REJECTED with a submit reward already paid, prefix the remaining
-    // reward with "完了" so it's clear the points come from approval, not resubmit.
     if (com > 0) {
       const wasResubmit = t.status === STATUS.REJECTED && sub > 0;
       const key = wasResubmit ? 'tasks.rewardCompleteLabeled' : 'tasks.rewardCompleteOnly';
@@ -608,7 +677,6 @@
     return '';
   }
 
-  // Format minutes into the locale-specific representation defined in STRINGS.time.
   function formatMinutes(mins) {
     const m = Number(mins) || 0;
     if (m <= 0) return '';
@@ -676,8 +744,17 @@
     els.setupSubmit.addEventListener('click', submitSetup);
     els.setupCancel.addEventListener('click', closeSetup);
     els.setupGasUrl.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitSetup(); });
-    els.setupUser.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitSetup(); });
-    els.setupLabel.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitSetup(); });
+
+    els.userLabel.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleUserPopover();
+    });
+    document.addEventListener('click', (e) => {
+      if (els.userPopover.classList.contains('hidden')) return;
+      if (!els.userPopover.contains(e.target) && e.target !== els.userLabel) {
+        closeUserPopover();
+      }
+    });
 
     [els.parentModal, els.cashoutModal].forEach((m) => {
       m.addEventListener('click', (e) => {
