@@ -344,13 +344,13 @@ function handleCashout(user, amount, password) {
     const total = readHistory(ss, sheetName)
       .reduce((s, h) => s + (Number(h.points) || 0), 0);
     if (amt > total) throw new Error('残高不足です (現在 ' + total + ' pt)');
-    sheet.appendRow([formatDateTime(new Date()), 'お小遣い換金', -amt]);
+    sheet.appendRow([formatDateTime(new Date()), 'ポイント消費', -amt]);
     return { amount: amt, balance: total - amt };
   });
 
   notify(
-    user + 'の換金完了',
-    user + ' が ' + amt + ' pt を換金しました。\n残高: ' + result.balance + ' pt'
+    user + 'のポイント消費',
+    user + ' が ' + amt + ' pt を使いました。\n残高: ' + result.balance + ' pt'
   );
   return result;
 }

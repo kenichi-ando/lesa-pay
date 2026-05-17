@@ -452,14 +452,14 @@
       els.cashoutError.classList.remove('hidden');
       return;
     }
-    if (!confirm(`${amount} pt を換金します。よろしいですか？`)) return;
+    if (!confirm(`${amount} pt を使います。よろしいですか？`)) return;
 
     els.cashoutSubmit.disabled = true;
     els.cashoutSubmit.textContent = '処理中…';
     try {
       await api('cashout', { amount, password: state.parentPassword });
       els.cashoutModal.classList.add('hidden');
-      toast(`💴 ${amount} pt を換金しました`, 'success');
+      toast(`💸 ${amount} pt を使いました`, 'success');
       dataCache = null;
       await loadData(true);
     } catch (err) {
@@ -467,7 +467,7 @@
       els.cashoutError.classList.remove('hidden');
     } finally {
       els.cashoutSubmit.disabled = false;
-      els.cashoutSubmit.textContent = '換金実行';
+      els.cashoutSubmit.textContent = '使う';
     }
   }
 
