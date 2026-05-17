@@ -124,4 +124,4 @@ npm run deploy
 
 ## 開発者向け
 
-設計原則・アーキテクチャ・拡張方法は [`CONTRIBUTING.md`](./CONTRIBUTING.md) を参照してください（英語）。
+設計原則・アーキテクチャ・拡張方法は [`ARCHITECTURE.md`](./ARCHITECTURE.md) を参照してください（英語）。
