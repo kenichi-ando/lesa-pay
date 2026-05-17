@@ -15,7 +15,7 @@
  *  5. デプロイ → ウェブアプリ (実行: 自分 / アクセス: 全員)
  *
  * シート構成:
- *  - 「課題_<名前>」 : A=ID, B=科目, C=分類, D=項目, E=報酬, F=ステータス, G=有効期限
+ *  - 「課題_<名前>」 : A=ID, B=科目, C=分類, D=項目, E=報酬, F=状態, G=期限
  *  - 「履歴_<名前>」 : A=日時, B=内容, C=ポイント
  */
 
@@ -77,6 +77,24 @@ function checkPassword(password) {
   if (password !== expected) throw new Error('パスワードが違います');
 }
 
+// 通知メールを送信。NOTIFY_EMAILS (カンマ区切り) が未設定ならスキップ。
+// メール送信失敗はアプリ動作を止めないようログだけ残す。
+function notify(subject, body) {
+  const raw = PropertiesService.getScriptProperties().getProperty('NOTIFY_EMAILS');
+  if (!raw) return;
+  const recipients = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  if (recipients.length === 0) return;
+  try {
+    MailApp.sendEmail({
+      to: recipients.join(','),
+      subject: '[LesaPay] ' + subject,
+      body: body
+    });
+  } catch (err) {
+    Logger.log('メール送信失敗: ' + err.message);
+  }
+}
+
 // ---------- handlers ----------
 
 function handleGetData(user) {
@@ -100,6 +118,7 @@ function handleApplyTask(user, taskId) {
   const sheet = ss.getSheetByName(sheetName);
   if (!sheet) throw new Error('シートがありません: ' + sheetName);
 
+  let notifyPayload = null;
   const lock = LockService.getScriptLock();
   lock.waitLock(5000);
   try {
@@ -115,17 +134,29 @@ function handleApplyTask(user, taskId) {
         if (expiry !== '' && expiry != null) {
           const expiryDate = isDateLike(expiry) ? new Date(expiry.getTime()) : new Date(expiry);
           if (!isNaN(expiryDate.getTime()) && expiryDate < truncDate(new Date())) {
-            throw new Error('有効期限切れです');
+            throw new Error('期限切れです');
           }
         }
         sheet.getRange(i + 2, 6).setValue('申請中');
-        return { taskId };
+        notifyPayload = {
+          subject: String(values[i][1] || ''),
+          title:   String(values[i][3] || ''),
+          points:  Number(values[i][4]) || 0
+        };
+        break;
       }
     }
-    throw new Error('該当する課題が見つかりません');
+    if (!notifyPayload) throw new Error('該当する課題が見つかりません');
   } finally {
     lock.releaseLock();
   }
+
+  // ロック解放後に通知 (メール送信が遅くてもロックを長引かせない)
+  notify(
+    user + 'から完了報告',
+    user + ' が「' + (notifyPayload.subject ? notifyPayload.subject + ' ' : '') + notifyPayload.title + '」(' + notifyPayload.points + 'pt) を完了報告しました。\n\nアプリで承認してください。'
+  );
+  return { taskId };
 }
 
 function handleVerifyPassword(password) {
@@ -157,7 +188,7 @@ function handleApproveTask(user, taskId, password) {
         // C-1: 申請中の課題のみ承認可能
         if (status === '承認済み') throw new Error('すでに承認済みです');
         if (status !== '申請中') throw new Error('申請中の課題ではありません (現在: ' + (status || '未完了') + ')');
-        // H-1: 履歴追加→flush→ステータス更新の順で部分失敗を防ぐ
+        // H-1: 履歴追加→flush→状態更新の順で部分失敗を防ぐ
         const subject = String(values[i][1] || '');
         const title   = String(values[i][3] || '');
         const points  = Number(values[i][4]) || 0;
@@ -216,6 +247,7 @@ function handleCashout(user, amount, password) {
   const sheet = ss.getSheetByName(sheetName);
   if (!sheet) throw new Error('シートがありません: ' + sheetName);
 
+  let result;
   const lock = LockService.getScriptLock();
   lock.waitLock(5000);
   try {
@@ -223,10 +255,16 @@ function handleCashout(user, amount, password) {
       .reduce((s, h) => s + (Number(h.points) || 0), 0);
     if (amt > total) throw new Error('残高不足です (現在 ' + total + ' pt)');
     sheet.appendRow([formatDateTime(new Date()), 'お小遣い換金', -amt]);
-    return { amount: amt, balance: total - amt };
+    result = { amount: amt, balance: total - amt };
   } finally {
     lock.releaseLock();
   }
+
+  notify(
+    user + 'の換金完了',
+    user + ' が ' + amt + ' pt を換金しました。\n残高: ' + result.balance + ' pt'
+  );
+  return result;
 }
 
 // ---------- sheet readers ----------
@@ -333,7 +371,7 @@ function truncDate(d) {
 function setupSheets(user) {
   if (!user) throw new Error('user が未指定。例: setupSheets("ライト")');
   const ss = getSpreadsheet();
-  const taskHeaders = ['ID', '科目', '分類', '項目', '報酬ポイント', 'ステータス', '有効期限'];
+  const taskHeaders = ['ID', '科目', '分類', '項目', '報酬', '状態', '期限'];
   const historyHeaders = ['日時', '内容', 'ポイント'];
   ensureSheet(ss, tasksSheetName(user), taskHeaders);
   ensureSheet(ss, historySheetName(user), historyHeaders);
