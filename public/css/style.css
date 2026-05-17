@@ -1,10 +1,14 @@
-/* レッサーパンダ・カラーパレット
- *   primary  : 赤茶色の毛 (#b6562d)
- *   accent   : 顔の濃いマスク (#8a3f1f)
- *   cream    : 顔の白〜クリーム (#fff4e6)
- *   bamboo   : 笹の緑
- *   dark     : 鼻・目・しっぽの縞 (#3a2418)
- */
+/* ============================================================
+   LesaPay スタイル
+   レッサーパンダ・カラーパレット
+     primary  : 赤茶色の毛 (#b6562d)
+     accent   : 顔の濃いマスク (#8a3f1f)
+     cream    : 顔の白〜クリーム (#fff4e6)
+     bamboo   : 笹の緑
+     dark     : 鼻・目・しっぽの縞 (#3a2418)
+   ============================================================ */
+
+/* ---------------- 変数 ---------------- */
 :root {
   --color-primary: #b6562d;
   --color-primary-dark: #8a3f1f;
@@ -22,6 +26,9 @@
   --color-success: #5a8a3a;
   --color-warning: #e8a23a;
   --color-danger: #c44a2e;
+  --color-pink: #ffb3c1;
+  --color-pink-soft: #ffd1dc;
+  --color-yellow-soft: #ffe9a8;
   --shadow-sm: 0 2px 8px rgba(138, 63, 31, 0.08);
   --shadow-md: 0 4px 16px rgba(138, 63, 31, 0.15);
   --shadow-lg: 0 8px 32px rgba(138, 63, 31, 0.2);
@@ -31,6 +38,7 @@
   --safe-area-bottom: env(safe-area-inset-bottom, 0);
 }
 
+/* ---------------- リセット ---------------- */
 * {
   margin: 0;
   padding: 0;
@@ -56,22 +64,53 @@ body {
   padding-bottom: calc(80px + var(--safe-area-bottom));
 }
 
-/* ---------------- Header ---------------- */
+/* PC幅で背景にうっすら足跡 */
+@media (min-width: 720px) {
+  body::before {
+    content: "";
+    position: fixed;
+    top: 80px;
+    left: 20px;
+    width: 80px;
+    height: 80px;
+    background-image:
+      radial-gradient(circle at 50% 50%, var(--color-primary) 8px, transparent 9px),
+      radial-gradient(circle at 30% 30%, var(--color-primary) 4px, transparent 5px),
+      radial-gradient(circle at 70% 30%, var(--color-primary) 4px, transparent 5px);
+    opacity: 0.05;
+    pointer-events: none;
+  }
+}
+
+/* ---------------- ヘッダー ---------------- */
 .app-header {
   position: sticky;
   top: 0;
   z-index: 100;
-  background:
-    linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
   color: var(--color-cream);
   padding: 16px 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   box-shadow: var(--shadow-md);
+  overflow: hidden;
 }
 
-/* ヘッダー下端にしっぽの縞模様を再現 */
+/* ヘッダーに小さな足跡を散らす */
+.app-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 15% 60%, rgba(255,255,255,0.12) 2px, transparent 2.5px),
+    radial-gradient(circle at 80% 30%, rgba(255,255,255,0.15) 1.5px, transparent 2px),
+    radial-gradient(circle at 60% 80%, rgba(255,255,255,0.10) 2px, transparent 2.5px);
+  background-size: 40px 40px, 35px 35px, 50px 50px;
+  pointer-events: none;
+}
+
+/* ヘッダー下端のしっぽの縞模様 */
 .app-header::after {
   content: "";
   position: absolute;
@@ -98,17 +137,44 @@ body {
   letter-spacing: 0.5px;
 }
 
+.app-title-text {
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.15);
+}
+
+.app-title-text::after {
+  content: "✨";
+  margin-left: 4px;
+  font-size: 14px;
+  animation: sparkle 2s ease-in-out infinite;
+  display: inline-block;
+}
+
 .app-logo {
   width: 36px;
   height: 36px;
-  background: var(--color-cream);
+  background: radial-gradient(circle at 30% 30%, #fff, #ffd9c2);
+  border: 2px solid rgba(255, 255, 255, 0.6);
   border-radius: 50%;
   padding: 2px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  animation: panda-bounce 3s ease-in-out infinite;
 }
 
-.app-title-text {
-  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.15);
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.user-label {
+  background: rgba(255, 244, 230, 0.25);
+  color: var(--color-cream);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-left: 6px;
+  border: 1px solid rgba(255, 244, 230, 0.35);
 }
 
 .parent-btn {
@@ -123,7 +189,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s;
+  transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.parent-btn:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
 }
 
 .parent-btn:active {
@@ -133,76 +204,37 @@ body {
 .parent-btn.active {
   background: var(--color-warning);
   border-color: var(--color-warning);
+  animation: pulse-warm 1.5s ease-in-out infinite;
 }
 
-/* ---------------- Tabs ---------------- */
-.child-tabs {
-  display: flex;
-  background: white;
-  position: sticky;
-  top: 76px;
-  z-index: 99;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.tab-btn {
-  flex: 1;
-  background: none;
-  border: none;
-  padding: 12px 8px;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--color-text-light);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border-bottom: 3px solid transparent;
-  transition: all 0.2s;
-}
-
-.tab-btn .tab-icon {
-  width: 28px;
-  height: 28px;
-  filter: grayscale(0.7) opacity(0.6);
-  transition: filter 0.2s;
-}
-
-.tab-btn[data-child="younger"] .tab-icon {
-  transform: scale(0.85); /* 下の子はちょっと小さく */
-}
-
-.tab-btn.active {
-  color: var(--color-primary-dark);
-  border-bottom-color: var(--color-primary);
-}
-
-.tab-btn.active .tab-icon {
-  filter: none;
-}
-
-/* ---------------- Main ---------------- */
+/* ---------------- メイン ---------------- */
 .app-main {
   padding: 20px;
   max-width: 720px;
   margin: 0 auto;
 }
 
-/* ---------------- Balance ---------------- */
+/* ---------------- 残高カード ---------------- */
 .balance-card {
   background:
-    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.5) 0%, transparent 50%),
-    linear-gradient(135deg, var(--color-cream) 0%, var(--color-cream-dark) 100%);
-  border: 3px solid var(--color-primary);
-  border-radius: var(--radius-lg);
+    radial-gradient(circle at 25% 20%, rgba(255,255,255,0.7) 0%, transparent 40%),
+    radial-gradient(circle at 75% 90%, rgba(255,179,193,0.3) 0%, transparent 40%),
+    linear-gradient(135deg, #fff4e6 0%, #ffe0c4 100%);
+  border: 3px solid #fbc89c;
+  border-radius: 28px;
   padding: 24px;
   text-align: center;
   margin-bottom: 24px;
-  box-shadow: var(--shadow-md);
+  box-shadow:
+    0 6px 20px rgba(182, 86, 45, 0.18),
+    inset 0 -4px 12px rgba(255, 179, 193, 0.18);
   position: relative;
   overflow: hidden;
+  transition: transform 0.3s;
+}
+
+.balance-card:hover {
+  transform: translateY(-2px) scale(1.01);
 }
 
 /* 縞模様の装飾帯 (しっぽモチーフ) */
@@ -226,7 +258,7 @@ body {
   position: absolute;
   top: 14px;
   right: 14px;
-  background: #fff4e6;
+  background: var(--color-cream);
   border: 3px solid #fff;
   border-radius: 50%;
   padding: 2px;
@@ -243,13 +275,18 @@ body {
   letter-spacing: 1px;
 }
 
+.balance-label::before { content: "💖 "; }
+
 .balance-value {
   font-size: 52px;
   font-weight: 900;
-  color: var(--color-primary-dark);
   line-height: 1;
   margin-bottom: 8px;
-  text-shadow: 2px 2px 0 rgba(255, 255, 255, 0.6);
+  background: linear-gradient(180deg, #c96a3a 0%, #8a3f1f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(2px 2px 0 rgba(255, 255, 255, 0.7));
 }
 
 .balance-unit {
@@ -264,7 +301,7 @@ body {
   font-weight: 500;
 }
 
-/* ---------------- Sections ---------------- */
+/* ---------------- セクション見出し ---------------- */
 .content-section {
   margin-bottom: 28px;
 }
@@ -283,6 +320,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  padding-left: 4px;
 }
 
 .section-emoji {
@@ -307,7 +345,7 @@ body {
   transform: rotate(180deg);
 }
 
-/* ---------------- Tasks ---------------- */
+/* ---------------- タスク一覧 ---------------- */
 .tasks-list,
 .history-list {
   display: flex;
@@ -317,15 +355,21 @@ body {
 
 .task-item {
   background: var(--color-card);
-  border-radius: var(--radius-md);
+  border-radius: 18px;
   padding: 14px 16px;
   box-shadow: var(--shadow-sm);
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  border-left: 5px solid var(--color-primary);
+  border-left: 6px solid var(--color-primary);
   position: relative;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.task-item:hover {
+  transform: translateX(3px);
+  box-shadow: 0 6px 18px rgba(138, 63, 31, 0.15);
 }
 
 .task-item.status-applied {
@@ -333,10 +377,37 @@ body {
   background: linear-gradient(90deg, #fff8e8 0%, #ffffff 30%);
 }
 
+.task-item.status-applied::after {
+  content: "🐼";
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  font-size: 18px;
+  background: #fff;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  filter: hue-rotate(-20deg) saturate(1.5);
+  animation: panda-bounce 2s ease-in-out infinite;
+}
+
 .task-item.status-approved {
   border-left-color: var(--color-success);
   background: linear-gradient(90deg, #f0f8e8 0%, #ffffff 30%);
   opacity: 0.78;
+}
+
+.task-item.status-approved::after {
+  content: "✨";
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  font-size: 16px;
+  animation: sparkle 1.5s ease-in-out infinite;
 }
 
 .task-info {
@@ -353,11 +424,12 @@ body {
 
 .task-tag {
   font-size: 11px;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 999px;
   background: var(--color-bg);
   color: var(--color-text-light);
   font-weight: 700;
+  letter-spacing: 0.3px;
 }
 
 .task-tag.subject {
@@ -387,6 +459,7 @@ body {
   gap: 8px;
   font-size: 12px;
   color: var(--color-text-light);
+  flex-wrap: wrap;
 }
 
 .task-points {
@@ -395,8 +468,12 @@ body {
   font-size: 14px;
 }
 
-.task-points::before {
-  content: "⭐ ";
+.task-points::before { content: "⭐ "; }
+
+.task-minutes {
+  color: var(--color-text-light);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .task-action {
@@ -407,14 +484,29 @@ body {
   background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
   color: var(--color-cream);
   border: none;
-  padding: 10px 16px;
-  border-radius: var(--radius-sm);
+  padding: 10px 18px;
+  border-radius: 14px;
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;
   white-space: nowrap;
-  transition: transform 0.1s, filter 0.2s;
+  transition: transform 0.1s, filter 0.2s, box-shadow 0.15s;
   box-shadow: 0 2px 6px rgba(138, 63, 31, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.task-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.4), transparent 50%);
+  pointer-events: none;
+}
+
+.task-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(138, 63, 31, 0.4);
 }
 
 .task-btn:active {
@@ -429,12 +521,6 @@ body {
   box-shadow: none;
 }
 
-.task-action-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
 .task-btn.approve-btn {
   background: linear-gradient(135deg, var(--color-bamboo) 0%, var(--color-bamboo-dark) 100%);
   padding: 8px 14px;
@@ -447,6 +533,12 @@ body {
   padding: 8px 14px;
   font-size: 12px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.task-action-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .task-status-badge {
@@ -467,17 +559,80 @@ body {
   color: white;
 }
 
-/* ---------------- History ---------------- */
+/* ---------------- 科目グループ ---------------- */
+.task-group {
+  margin-bottom: 16px;
+}
+
+.task-group-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  padding: 6px 12px;
+  margin-bottom: 8px;
+  background: var(--color-cream);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.task-group-title::before {
+  content: "🐾";
+  font-size: 12px;
+}
+
+.task-group-badge {
+  background: var(--color-warning);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.task-group-time {
+  background: var(--color-cream-dark);
+  color: var(--color-primary-dark);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-primary-light);
+}
+
+.task-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* グループ内のタスクは科目タグが見出しと重複するので非表示 */
+.task-group-items .task-tag.subject {
+  display: none;
+}
+
+/* ---------------- 履歴 ---------------- */
 .history-item {
-  background: var(--color-card);
-  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #fff 0%, #fffaf2 100%);
+  border-radius: 16px;
   padding: 12px 16px;
   box-shadow: var(--shadow-sm);
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  border: 1px solid var(--color-border);
+  border: none;
+  border-left: 4px solid transparent;
+}
+
+.history-item:has(.history-points.positive) {
+  border-left-color: var(--color-bamboo);
+}
+
+.history-item:has(.history-points.negative) {
+  border-left-color: var(--color-pink);
 }
 
 .history-info {
@@ -507,9 +662,13 @@ body {
   color: var(--color-success);
 }
 
+.history-points.positive::before { content: "⭐ "; }
+
 .history-points.negative {
   color: var(--color-danger);
 }
+
+.history-points.negative::before { content: "💴 "; }
 
 /* ---------------- Empty / Loading ---------------- */
 .empty-state {
@@ -517,21 +676,22 @@ body {
   padding: 32px 16px;
   color: var(--color-text-light);
   font-size: 14px;
-  background: var(--color-card);
+  background: linear-gradient(135deg, #fffaf2 0%, #fff 100%);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
-  border: 2px dashed var(--color-border);
+  border: 2px dashed #fbc89c;
 }
 
 .empty-state::before {
   content: "🐼";
   display: block;
-  font-size: 32px;
+  font-size: 42px;
   margin-bottom: 8px;
-  filter: hue-rotate(-20deg) saturate(1.5);
+  filter: hue-rotate(-20deg) saturate(1.5) drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+  animation: panda-bounce 3s ease-in-out infinite;
 }
 
-/* ---------------- Parent Panel ---------------- */
+/* ---------------- 保護者パネル ---------------- */
 .parent-panel {
   position: fixed;
   bottom: 0;
@@ -573,22 +733,34 @@ body {
 
 .action-btn {
   flex: 1;
-  background: linear-gradient(135deg, var(--color-warning) 0%, #d48a1e 100%);
+  background: linear-gradient(135deg, #ffd96b 0%, #e8a23a 100%);
   color: white;
   border: none;
-  padding: 14px;
-  border-radius: var(--radius-md);
-  font-size: 16px;
+  padding: 16px;
+  border-radius: 18px;
+  font-size: 17px;
   font-weight: 800;
   cursor: pointer;
   box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.action-btn::after {
+  content: "";
+  position: absolute;
+  top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.4) 50%, transparent 70%);
+  animation: shine 3s ease-in-out infinite;
+  pointer-events: none;
 }
 
 .action-btn:active {
   transform: scale(0.98);
 }
 
-/* ---------------- Modal ---------------- */
+/* ---------------- モーダル ---------------- */
 .modal {
   position: fixed;
   inset: 0;
@@ -615,12 +787,15 @@ body {
 
 .modal-mascot {
   display: block;
-  margin: -50px auto 8px;
-  background: var(--color-cream);
+  width: 80px;
+  height: 80px;
+  margin: -60px auto 12px;
+  background: radial-gradient(circle at 30% 30%, #fff, #ffd9c2);
   border: 4px solid white;
   border-radius: 50%;
   padding: 4px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 4px 12px rgba(138, 63, 31, 0.25);
+  animation: panda-pop 0.4s ease-out;
 }
 
 .modal-title {
@@ -640,48 +815,25 @@ body {
   width: 100%;
   padding: 14px 16px;
   border: 2px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: 16px;
   font-size: 18px;
   margin-bottom: 16px;
-  transition: border-color 0.2s;
   text-align: center;
   font-weight: 700;
+  background: #fffaf2;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
 
 .modal-input:focus {
   outline: none;
   border-color: var(--color-primary);
+  background: white;
+  box-shadow: 0 0 0 4px rgba(255, 179, 193, 0.3);
 }
 
 .modal-actions {
   display: flex;
   gap: 12px;
-}
-
-.btn {
-  flex: 1;
-  padding: 12px;
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: 15px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
-  color: var(--color-cream);
-  box-shadow: 0 2px 6px rgba(138, 63, 31, 0.3);
-}
-
-.btn-secondary {
-  background: var(--color-bg);
-  color: var(--color-text);
-  border: 2px solid var(--color-border);
-}
-
-.btn:active {
-  transform: scale(0.98);
 }
 
 .modal-error {
@@ -694,7 +846,59 @@ body {
   font-weight: 600;
 }
 
-/* ---------------- Toast ---------------- */
+/* セットアップモーダルのラベル */
+.setup-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-light);
+  margin-bottom: 6px;
+  margin-top: 8px;
+  text-align: left;
+}
+
+/* ---------------- 共通ボタン (.btn) ---------------- */
+.btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 16px;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  color: var(--color-cream);
+  box-shadow: 0 2px 6px rgba(138, 63, 31, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.35), transparent 50%);
+}
+
+.btn-secondary {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 2px solid var(--color-border);
+}
+
+/* ---------------- トースト ---------------- */
 .toast {
   position: fixed;
   bottom: 100px;
@@ -702,14 +906,14 @@ body {
   transform: translateX(-50%);
   background: var(--color-dark);
   color: var(--color-cream);
-  padding: 12px 24px;
+  padding: 14px 28px;
   border-radius: 999px;
   font-size: 14px;
   font-weight: 700;
   z-index: 2000;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  border: 3px solid rgba(255, 255, 255, 0.3);
   animation: toast-in 0.3s ease;
-  border: 2px solid var(--color-primary);
   max-width: calc(100vw - 40px);
   text-align: center;
 }
@@ -724,342 +928,44 @@ body {
   border-color: #8a2e1a;
 }
 
-@keyframes toast-in {
-  from { opacity: 0; transform: translate(-50%, 20px); }
-  to   { opacity: 1; transform: translate(-50%, 0); }
-}
-
-/* ---------------- Utilities ---------------- */
+/* ---------------- ユーティリティ ---------------- */
 .hidden { display: none !important; }
 .loading { opacity: 0.5; pointer-events: none; }
 
-@media (max-width: 480px) {
-  .balance-value { font-size: 44px; }
-  .app-title { font-size: 20px; }
-}
-
-/* ---------------- Header actions ---------------- */
-.header-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.user-label {
-  background: rgba(255, 244, 230, 0.25);
-  color: var(--color-cream);
-  font-size: 12px;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 999px;
-  margin-left: 6px;
-  border: 1px solid rgba(255, 244, 230, 0.35);
-}
-
-/* ---------------- Setup modal ---------------- */
-.setup-label {
-  display: block;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--color-text-light);
-  margin-bottom: 6px;
-  margin-top: 8px;
-  text-align: left;
-}
-
-/* ============================================
-   かわいさアップグレード
-   ============================================ */
-
-/* 全体: ふわっとした影とパステルアクセント */
-:root {
-  --color-pink:    #ffb3c1;
-  --color-pink-soft: #ffd1dc;
-  --color-yellow-soft: #ffe9a8;
-}
-
-/* ロゴはほんのり跳ねる */
-.app-logo {
-  animation: panda-bounce 3s ease-in-out infinite;
-  background: radial-gradient(circle at 30% 30%, #fff, #ffd9c2);
-  border: 2px solid rgba(255, 255, 255, 0.6);
-}
-
+/* ---------------- アニメーション ---------------- */
 @keyframes panda-bounce {
   0%, 100% { transform: translateY(0) rotate(-3deg); }
   50%      { transform: translateY(-3px) rotate(3deg); }
 }
 
-/* ヘッダーに小さな足跡を散らす */
-.app-header {
-  overflow: hidden;
-}
-.app-header::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(circle at 15% 60%, rgba(255,255,255,0.12) 2px, transparent 2.5px),
-    radial-gradient(circle at 80% 30%, rgba(255,255,255,0.15) 1.5px, transparent 2px),
-    radial-gradient(circle at 60% 80%, rgba(255,255,255,0.10) 2px, transparent 2.5px);
-  background-size: 40px 40px, 35px 35px, 50px 50px;
-  pointer-events: none;
-}
-
-/* 残高カードを「お餅」っぽくふくらませる */
-.balance-card {
-  border-radius: 28px;
-  background:
-    radial-gradient(circle at 25% 20%, rgba(255,255,255,0.7) 0%, transparent 40%),
-    radial-gradient(circle at 75% 90%, rgba(255,179,193,0.3) 0%, transparent 40%),
-    linear-gradient(135deg, #fff4e6 0%, #ffe0c4 100%);
-  border: 3px solid #fbc89c;
-  box-shadow:
-    0 6px 20px rgba(182, 86, 45, 0.18),
-    inset 0 -4px 12px rgba(255, 179, 193, 0.18);
-  transition: transform 0.3s;
-}
-.balance-card:hover {
-  transform: translateY(-2px) scale(1.01);
-}
-
-/* 残高数字に光る効果 */
-.balance-value {
-  background: linear-gradient(180deg, #c96a3a 0%, #8a3f1f 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter: drop-shadow(2px 2px 0 rgba(255, 255, 255, 0.7));
-}
-
-/* しっぽが揺れる */
-/* タスクアイテムをマシュマロ風に */
-.task-item {
-  border-radius: 18px;
-  border-left-width: 6px;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-  position: relative;
-}
-.task-item:hover {
-  transform: translateX(3px);
-  box-shadow: 0 6px 18px rgba(138, 63, 31, 0.15);
-}
-
-/* タスクの角に小さなレッサーパンダ */
-.task-item.status-applied::after {
-  content: "🐼";
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  font-size: 18px;
-  background: #fff;
-  border-radius: 50%;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-  filter: hue-rotate(-20deg) saturate(1.5);
-  animation: panda-bounce 2s ease-in-out infinite;
-}
-.task-item.status-approved::after {
-  content: "✨";
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  font-size: 16px;
-  animation: sparkle 1.5s ease-in-out infinite;
-}
-@keyframes sparkle {
-  0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
-  50%      { transform: scale(1.3) rotate(180deg); opacity: 0.8; }
-}
-
-/* タスクボタンを「ぷにっ」と */
-.task-btn {
-  border-radius: 14px;
-  padding: 10px 18px;
-  position: relative;
-  overflow: hidden;
-}
-.task-btn::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.4), transparent 50%);
-  pointer-events: none;
-}
-.task-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(138, 63, 31, 0.4);
-}
-
-/* 履歴アイテムをやわらかく */
-.history-item {
-  border-radius: 16px;
-  border: none;
-  border-left: 4px solid transparent;
-  background: linear-gradient(135deg, #fff 0%, #fffaf2 100%);
-}
-.history-item:has(.history-points.positive) {
-  border-left-color: var(--color-bamboo);
-}
-.history-item:has(.history-points.negative) {
-  border-left-color: var(--color-pink);
-}
-
-/* 履歴のポイント数字を強調 */
-.history-points.positive::before { content: "⭐ "; }
-.history-points.negative::before { content: "💴 "; }
-
-/* タイトルにキラキラ装飾 */
-.app-title-text::after {
-  content: "✨";
-  margin-left: 4px;
-  font-size: 14px;
-  animation: sparkle 2s ease-in-out infinite;
-  display: inline-block;
-}
-
-/* 保護者ボタンに「ふわっ」 */
-.parent-btn {
-  transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
-}
-.parent-btn:hover {
-  transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-}
-.parent-btn.active {
-  animation: pulse-warm 1.5s ease-in-out infinite;
-}
-@keyframes pulse-warm {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(232, 162, 58, 0.7); }
-  50%      { box-shadow: 0 0 0 8px rgba(232, 162, 58, 0); }
-}
-
-/* モーダルマスコットを大きく・ぴょこっと */
-.modal-mascot {
-  width: 80px;
-  height: 80px;
-  margin: -60px auto 12px;
-  background: radial-gradient(circle at 30% 30%, #fff, #ffd9c2);
-  border: 4px solid white;
-  box-shadow: 0 4px 12px rgba(138, 63, 31, 0.25);
-  animation: panda-pop 0.4s ease-out;
-}
 @keyframes panda-pop {
   0%   { transform: scale(0.5) rotate(-15deg); opacity: 0; }
   60%  { transform: scale(1.1) rotate(5deg); }
   100% { transform: scale(1) rotate(0deg); opacity: 1; }
 }
 
-/* 空状態のレッサーパンダ顔をもっと目立つように */
-.empty-state {
-  background: linear-gradient(135deg, #fffaf2 0%, #fff 100%);
-  border-style: dashed;
-  border-color: #fbc89c;
-}
-.empty-state::before {
-  font-size: 42px;
-  filter: hue-rotate(-20deg) saturate(1.5) drop-shadow(0 2px 4px rgba(0,0,0,0.1));
-  animation: panda-bounce 3s ease-in-out infinite;
+@keyframes sparkle {
+  0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  50%      { transform: scale(1.3) rotate(180deg); opacity: 0.8; }
 }
 
-/* 換金ボタンを宝箱風に */
-.action-btn {
-  background: linear-gradient(135deg, #ffd96b 0%, #e8a23a 100%);
-  border-radius: 18px;
-  padding: 16px;
-  font-size: 17px;
-  position: relative;
-  overflow: hidden;
+@keyframes pulse-warm {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(232, 162, 58, 0.7); }
+  50%      { box-shadow: 0 0 0 8px rgba(232, 162, 58, 0); }
 }
-.action-btn::after {
-  content: "";
-  position: absolute;
-  top: -50%; left: -50%;
-  width: 200%; height: 200%;
-  background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.4) 50%, transparent 70%);
-  animation: shine 3s ease-in-out infinite;
-  pointer-events: none;
-}
+
 @keyframes shine {
   0%, 100% { transform: translate(-50%, -50%); }
   50%      { transform: translate(50%, 50%); }
 }
 
-/* セクションタイトルにレッサーパンダの足跡 */
-.section-title {
-  position: relative;
-  padding-left: 4px;
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 20px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
 }
 
-/* タグをかわいく */
-.task-tag {
-  border-radius: 999px;
-  padding: 3px 10px;
-  letter-spacing: 0.3px;
-  font-weight: 700;
-}
-
-/* 入力フォームをまろやかに */
-.modal-input {
-  border-radius: 16px;
-  background: #fffaf2;
-  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
-}
-.modal-input:focus {
-  background: white;
-  box-shadow: 0 0 0 4px rgba(255, 179, 193, 0.3);
-}
-
-/* ボタンの一般的なふわっと */
-.btn {
-  border-radius: 16px;
-  transition: transform 0.15s, box-shadow 0.15s;
-}
-.btn:hover {
-  transform: translateY(-1px);
-}
-.btn-primary {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
-  position: relative;
-  overflow: hidden;
-}
-.btn-primary::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.35), transparent 50%);
-}
-
-/* トーストにアイコン感を足す */
-.toast {
-  border-radius: 999px;
-  font-size: 14px;
-  padding: 14px 28px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-  border: 3px solid rgba(255, 255, 255, 0.3);
-}
-
-/* 残高ラベルにハート */
-.balance-label::before { content: "💖 "; }
-
-/* PCで広い時のレッサーパンダ装飾 */
-@media (min-width: 720px) {
-  body::before {
-    content: "";
-    position: fixed;
-    top: 80px;
-    left: 20px;
-    width: 80px;
-    height: 80px;
-    background-image:
-      radial-gradient(circle at 50% 50%, #b6562d 8px, transparent 9px),
-      radial-gradient(circle at 30% 30%, #b6562d 4px, transparent 5px),
-      radial-gradient(circle at 70% 30%, #b6562d 4px, transparent 5px);
-    opacity: 0.05;
-    pointer-events: none;
-  }
+/* ---------------- レスポンシブ ---------------- */
+@media (max-width: 480px) {
+  .balance-value { font-size: 44px; }
+  .app-title { font-size: 20px; }
 }

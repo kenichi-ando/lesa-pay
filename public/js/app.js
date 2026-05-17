@@ -116,18 +116,44 @@
       els.tasksList.innerHTML = '<div class="empty-state">読み込み中…</div>';
       return;
     }
-    const order = { '申請中': 0, '未完了': 1, '承認済み': 2 };
-    const sorted = [...state.tasks].sort((a, b) => {
-      const oa = order[a.status] ?? 99;
-      const ob = order[b.status] ?? 99;
-      if (oa !== ob) return oa - ob;
-      return (b.points || 0) - (a.points || 0);
-    });
-    if (sorted.length === 0) {
+    if (state.tasks.length === 0) {
       els.tasksList.innerHTML = '<div class="empty-state">課題がまだありません</div>';
       return;
     }
-    els.tasksList.innerHTML = sorted.map(taskItemHtml).join('');
+
+    // 科目ごとにグループ化
+    const groups = new Map();
+    for (const t of state.tasks) {
+      const key = t.subject || 'その他';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(t);
+    }
+
+    // 並び順はシート順そのまま (グループも各タスクも、シートに記載された順)。
+    // Map は挿入順を保持し、state.tasks は GAS から受け取った順 = シート順なので、
+    // groups の構築直後にソートしないだけで自然にシート順を維持できる。
+    const sortedKeys = [...groups.keys()];
+
+    els.tasksList.innerHTML = sortedKeys.map((key) => {
+      const items = groups.get(key);
+      const pendingCount = items.filter((t) => t.status === '申請中').length;
+      const pendingBadge = pendingCount > 0 ? `<span class="task-group-badge">${pendingCount}件 申請中</span>` : '';
+      // 未完了 + 差し戻しの合計時間 (やる必要のあるタスクの目安)
+      const totalMinutes = items
+        .filter((t) => t.status !== '承認済み' && t.status !== '申請中')
+        .reduce((sum, t) => sum + (Number(t.minutes) || 0), 0);
+      const timeBadge = totalMinutes > 0
+        ? `<span class="task-group-time">⏱ ${escapeHtml(formatMinutes(totalMinutes))}</span>`
+        : '';
+      return `
+        <div class="task-group">
+          <h3 class="task-group-title">${escapeHtml(key)}${timeBadge}${pendingBadge}</h3>
+          <div class="task-group-items">
+            ${items.map(taskItemHtml).join('')}
+          </div>
+        </div>
+      `;
+    }).join('');
     els.tasksList.querySelectorAll('[data-task-id]').forEach((btn) => {
       btn.addEventListener('click', onTaskAction);
     });
@@ -145,12 +171,12 @@
     if (state.parentMode && t.status === '申請中') {
       actionHtml = `
         <div class="task-action-group">
-          <button class="task-btn approve-btn" data-task-id="${escape(t.id)}" data-action="approve">✓ 承認</button>
-          <button class="task-btn reject-btn" data-task-id="${escape(t.id)}" data-action="reject">✏️ 訂正依頼</button>
+          <button class="task-btn approve-btn" data-task-id="${escapeHtml(t.id)}" data-action="approve">✓ 承認</button>
+          <button class="task-btn reject-btn" data-task-id="${escapeHtml(t.id)}" data-action="reject">✏️ 訂正依頼</button>
         </div>
       `;
     } else if (t.status === '未完了') {
-      actionHtml = `<button class="task-btn" data-task-id="${escape(t.id)}" data-action="apply" ${expired ? 'disabled' : ''}>完了報告</button>`;
+      actionHtml = `<button class="task-btn" data-task-id="${escapeHtml(t.id)}" data-action="apply" ${expired ? 'disabled' : ''}>完了報告</button>`;
     } else if (t.status === '申請中') {
       actionHtml = '<span class="task-status-badge">申請中</span>';
     } else if (t.status === '承認済み') {
@@ -161,12 +187,13 @@
       <div class="task-item ${statusClass}">
         <div class="task-info">
           <div class="task-meta">
-            ${t.subject ? `<span class="task-tag subject">${escape(t.subject)}</span>` : ''}
-            ${t.category ? `<span class="task-tag category">${escape(t.category)}</span>` : ''}
+            ${t.subject ? `<span class="task-tag subject">${escapeHtml(t.subject)}</span>` : ''}
+            ${t.category ? `<span class="task-tag category">${escapeHtml(t.category)}</span>` : ''}
           </div>
-          <div class="task-title">${escape(t.title)}</div>
+          <div class="task-title">${escapeHtml(t.title)}</div>
           <div class="task-footer">
-            <span class="task-points">+${(t.points || 0).toLocaleString()} pt</span>
+            ${formatRewards(t)}
+            ${t.minutes ? `<span class="task-minutes">⏱ ${escapeHtml(formatMinutes(t.minutes))}</span>` : ''}
             ${expiryLabel ? `<span>${expiryLabel}</span>` : ''}
           </div>
         </div>
@@ -193,8 +220,8 @@
       return `
         <div class="history-item">
           <div class="history-info">
-            <div class="history-content">${escape(h.content || '')}</div>
-            <div class="history-date">${escape(h.date || '')}</div>
+            <div class="history-content">${escapeHtml(h.content || '')}</div>
+            <div class="history-date">${escapeHtml(h.date || '')}</div>
           </div>
           <div class="history-points ${cls}">${sign}${pts.toLocaleString()}</div>
         </div>
@@ -316,7 +343,7 @@
     const action = btn.dataset.action;
 
     if (action === 'apply') {
-      if (!confirm('完了したことをパパ・ママに報告しますか？')) return;
+      if (!confirm('完了したことを報告しますか？')) return;
       const original = btn.textContent;
       btn.disabled = true;
       btn.textContent = '送信中…';
@@ -453,7 +480,30 @@
     toast._t = setTimeout(() => els.toast.classList.add('hidden'), 2800);
   }
 
-  function escape(s) {
+  // 提出報酬・完了報酬の表示。両方ある場合は「提出+10 / 完了+100 pt」、片方だけなら省略。
+  function formatRewards(t) {
+    const sub = Number(t.submitReward)   || 0;
+    const com = Number(t.completeReward) || Number(t.points) || 0;
+    if (sub > 0 && com > 0) {
+      return `<span class="task-points">提出+${sub.toLocaleString()} / 完了+${com.toLocaleString()} pt</span>`;
+    }
+    if (com > 0) return `<span class="task-points">+${com.toLocaleString()} pt</span>`;
+    if (sub > 0) return `<span class="task-points">提出+${sub.toLocaleString()} pt</span>`;
+    return '';
+  }
+
+  // 分単位 → "1時間30分" のような表記
+  function formatMinutes(mins) {
+    const m = Number(mins) || 0;
+    if (m <= 0) return '';
+    const h = Math.floor(m / 60);
+    const r = m % 60;
+    if (h > 0 && r > 0) return h + '時間' + r + '分';
+    if (h > 0)          return h + '時間';
+    return r + '分';
+  }
+
+  function escapeHtml(s) {
     return String(s ?? '').replace(/[&<>"']/g, (c) => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     })[c]);

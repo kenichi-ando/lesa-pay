@@ -11,13 +11,62 @@
  *  3. プロジェクトの設定 → スクリプトプロパティ:
  *       SHEET_ID        : スプレッドシートのID
  *       PARENT_PASSWORD : 保護者用パスワード
+ *       NOTIFY_EMAILS   : (任意) 通知メール先 (カンマ区切り)
  *  4. setupSheets("ライト") のように子の名前を渡して実行 → 2シート自動作成
  *  5. デプロイ → ウェブアプリ (実行: 自分 / アクセス: 全員)
  *
  * シート構成:
- *  - 「課題_<名前>」 : A=ID, B=科目, C=分類, D=項目, E=報酬, F=状態, G=期限
- *  - 「履歴_<名前>」 : A=日時, B=内容, C=ポイント
+ *  - 「課題_<名前>」  : A=ID, B=状態, C=科目, D=分類, E=項目, F=提出報酬, G=完了報酬, H=時間(分), I=期限
+ *  - 「履歴_<名前>」  : A=日時, B=内容, C=ポイント
+ *
+ * 状態 (B列) の値:
+ *  - 空 / 未完了 : 未提出 (空欄は読み込み時に「未完了」を自動セット)
+ *  - 申請中      : 子が完了報告済み、親の承認待ち
+ *  - 差し戻し    : 親が訂正依頼。再提出時に提出報酬は付与されない
+ *  - 承認済み    : 完了
+ *
+ * 設計原則:
+ *  - 全アクションを ACTIONS テーブルにマップ (新規追加は1行 + ハンドラ)
+ *  - 状態遷移バリデーションは GAS で完結 (クライアントを信頼しない)
+ *  - 列インデックスは TASK_COL 定数に集約 (列順変更に強い)
  */
+
+// ====================================================================
+// 定数
+// ====================================================================
+
+// 課題シートの列 (0-based)。1-based が必要な場合は +1 する。
+const TASK_COL = {
+  ID:              0,
+  STATUS:          1,
+  SUBJECT:         2,
+  CATEGORY:        3,
+  TITLE:           4,
+  SUBMIT_REWARD:   5,
+  COMPLETE_REWARD: 6,
+  MINUTES:         7,
+  EXPIRY:          8
+};
+const TASK_COL_COUNT = 9;
+
+// 履歴シートの列
+const HISTORY_COL = { DATE: 0, CONTENT: 1, POINTS: 2 };
+const HISTORY_COL_COUNT = 3;
+
+// 状態
+const STATUS = {
+  PENDING:    '未完了',
+  APPLIED:    '申請中',
+  REJECTED:   '差し戻し',
+  APPROVED:   '承認済み'
+};
+
+const TASK_HEADERS    = ['ID', '状態', '科目', '分類', '項目', '提出報酬', '完了報酬', '時間', '期限'];
+const HISTORY_HEADERS = ['日時', '内容', 'ポイント'];
+
+// ====================================================================
+// シート名・ユーザバリデーション
+// ====================================================================
 
 function tasksSheetName(user)   { return '課題_' + user; }
 function historySheetName(user) { return '履歴_' + user; }
@@ -27,13 +76,16 @@ function isValidUser(user) {
   return typeof user === 'string' && user.length > 0 && user.length <= 50;
 }
 
+// ====================================================================
 // アクション定義 (アクション名 → ハンドラ + メタ情報)
 //
 // requireUser    : true なら user パラメータ必須 (シート紐付き)
-// handler        : 引数は (req) のみ。req.user / req.taskId / req.password 等を取り出す
+// handler        : 引数は (req) のみ
 //
-// 新しいアクションを追加するときは、ここに 1 行足してハンドラ関数を実装するだけ。
-// 認証・状態遷移バリデーションは各ハンドラ側で完結させる (クライアントを信頼しない)。
+// 新しいアクション追加: 1 行 + 対応する handle... 関数を実装するだけ。
+// 認証・状態遷移バリデーションは各ハンドラで完結させる (クライアント不信)。
+// ====================================================================
+
 const ACTIONS = {
   getData:        { requireUser: true,  handler: (req) => handleGetData(req.user) },
   applyTask:      { requireUser: true,  handler: (req) => handleApplyTask(req.user, req.taskId) },
@@ -42,6 +94,10 @@ const ACTIONS = {
   rejectTask:     { requireUser: true,  handler: (req) => handleRejectTask(req.user, req.taskId, req.password) },
   cashout:        { requireUser: true,  handler: (req) => handleCashout(req.user, req.amount, req.password) }
 };
+
+// ====================================================================
+// エントリポイント
+// ====================================================================
 
 function doPost(e) {
   try {
@@ -62,6 +118,10 @@ function doGet() {
   return jsonOut({ ok: true, message: 'LesaPay GAS API is running' });
 }
 
+// ====================================================================
+// 共通ユーティリティ
+// ====================================================================
+
 function jsonOut(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
@@ -81,7 +141,7 @@ function checkPassword(password) {
 }
 
 // 通知メールを送信。NOTIFY_EMAILS (カンマ区切り) が未設定ならスキップ。
-// メール送信失敗はアプリ動作を止めないようログだけ残す。
+// 送信失敗はログだけ残してアプリ動作は止めない。
 function notify(subject, body) {
   const raw = PropertiesService.getScriptProperties().getProperty('NOTIFY_EMAILS');
   if (!raw) return;
@@ -98,14 +158,61 @@ function notify(subject, body) {
   }
 }
 
-// ---------- handlers ----------
+// 課題シートを取得 (なければエラー)
+function getTaskSheet(ss, user) {
+  const name = tasksSheetName(user);
+  const sheet = ss.getSheetByName(name);
+  if (!sheet) throw new Error('シートがありません: ' + name);
+  return sheet;
+}
+
+// 履歴シートを取得 (なければエラー)
+function getHistorySheet(ss, user) {
+  const name = historySheetName(user);
+  const sheet = ss.getSheetByName(name);
+  if (!sheet) throw new Error('シートがありません: ' + name);
+  return sheet;
+}
+
+// ロックを取って fn を実行する共通ラッパー。
+function withLock(fn) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(5000);
+  try {
+    return fn();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// 課題シートで taskId に一致する行を見つけて、コールバックで操作する共通処理。
+// fn(rowValues, rowIndex, sheet) を呼び出す。fn の戻り値が呼び出し元に渡される。
+// 該当行が無ければエラー。
+function findTaskRow(sheet, taskId, fn) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) throw new Error('課題が見つかりません');
+  const values = sheet.getRange(2, 1, lastRow - 1, TASK_COL_COUNT).getValues();
+  for (let i = 0; i < values.length; i++) {
+    if (String(values[i][TASK_COL.ID]) === String(taskId)) {
+      return fn(values[i], i + 2, sheet); // i + 2 は 1-based 行番号
+    }
+  }
+  throw new Error('該当する課題が見つかりません');
+}
+
+// 課題行の状態 (B列) を更新。
+function setTaskStatus(sheet, rowIndex, status) {
+  sheet.getRange(rowIndex, TASK_COL.STATUS + 1).setValue(status);
+}
+
+// ====================================================================
+// ハンドラ
+// ====================================================================
 
 function handleGetData(user) {
   const ss = getSpreadsheet();
   // C-4: シートが存在しない user (タイポ等) はセットアップ時に弾く
-  const taskSheet = ss.getSheetByName(tasksSheetName(user));
-  const historySheet = ss.getSheetByName(historySheetName(user));
-  if (!taskSheet || !historySheet) {
+  if (!ss.getSheetByName(tasksSheetName(user)) || !ss.getSheetByName(historySheetName(user))) {
     throw new Error('シートが見つかりません: 課題_' + user + ' / 履歴_' + user);
   }
   return {
@@ -117,49 +224,58 @@ function handleGetData(user) {
 function handleApplyTask(user, taskId) {
   if (!taskId) throw new Error('taskId が未指定');
   const ss = getSpreadsheet();
-  const sheetName = tasksSheetName(user);
-  const sheet = ss.getSheetByName(sheetName);
-  if (!sheet) throw new Error('シートがありません: ' + sheetName);
+  const sheet = getTaskSheet(ss, user);
 
-  let notifyPayload = null;
-  const lock = LockService.getScriptLock();
-  lock.waitLock(5000);
-  try {
-    const lastRow = sheet.getLastRow();
-    if (lastRow < 2) throw new Error('課題が見つかりません');
-    const values = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
-    for (let i = 0; i < values.length; i++) {
-      if (String(values[i][0]) === String(taskId)) {
-        const status = values[i][5];
-        if (status === '申請中') throw new Error('すでに申請中です');
-        if (status === '承認済み') throw new Error('すでに承認済みです');
-        const expiry = values[i][6];
-        if (expiry !== '' && expiry != null) {
-          const expiryDate = isDateLike(expiry) ? new Date(expiry.getTime()) : new Date(expiry);
-          if (!isNaN(expiryDate.getTime()) && expiryDate < truncDate(new Date())) {
-            throw new Error('期限切れです');
-          }
+  const notifyPayload = withLock(() => {
+    return findTaskRow(sheet, taskId, (row, rowIndex) => {
+      const status = row[TASK_COL.STATUS] || STATUS.PENDING;
+      if (status === STATUS.APPLIED)  throw new Error('すでに申請中です');
+      if (status === STATUS.APPROVED) throw new Error('すでに承認済みです');
+
+      const expiry = row[TASK_COL.EXPIRY];
+      if (expiry !== '' && expiry != null) {
+        const d = isDateLike(expiry) ? new Date(expiry.getTime()) : new Date(expiry);
+        if (!isNaN(d.getTime()) && d < truncDate(new Date())) {
+          throw new Error('期限切れです');
         }
-        sheet.getRange(i + 2, 6).setValue('申請中');
-        notifyPayload = {
-          subject: String(values[i][1] || ''),
-          title:   String(values[i][3] || ''),
-          points:  Number(values[i][4]) || 0
-        };
-        break;
       }
-    }
-    if (!notifyPayload) throw new Error('該当する課題が見つかりません');
-  } finally {
-    lock.releaseLock();
-  }
+
+      const submitReward   = Number(row[TASK_COL.SUBMIT_REWARD])   || 0;
+      const completeReward = Number(row[TASK_COL.COMPLETE_REWARD]) || 0;
+      const subject        = String(row[TASK_COL.SUBJECT] || '');
+      const title          = String(row[TASK_COL.TITLE]   || '');
+      // 1回目の提出 (未完了→申請中) のみ提出報酬を付与。差し戻し→申請中はスキップ。
+      const isFirstSubmit  = status !== STATUS.REJECTED;
+
+      if (isFirstSubmit && submitReward > 0) {
+        const histSheet = getHistorySheet(ss, user);
+        const content = (subject ? subject + ' ' : '') + title + ' (提出)';
+        histSheet.appendRow([formatDateTime(new Date()), content, submitReward]);
+        SpreadsheetApp.flush();
+      }
+      setTaskStatus(sheet, rowIndex, STATUS.APPLIED);
+
+      return {
+        subject: subject,
+        title: title,
+        completeReward: completeReward,
+        submitReward: isFirstSubmit ? submitReward : 0
+      };
+    });
+  });
 
   // ロック解放後に通知 (メール送信が遅くてもロックを長引かせない)
-  notify(
-    user + 'から完了報告',
-    user + ' が「' + (notifyPayload.subject ? notifyPayload.subject + ' ' : '') + notifyPayload.title + '」(' + notifyPayload.points + 'pt) を完了報告しました。\n\nアプリで承認してください。'
-  );
+  notify(user + 'から完了報告', buildApplyMailBody(user, notifyPayload));
   return { taskId };
+}
+
+function buildApplyMailBody(user, p) {
+  let body = user + ' が「' + (p.subject ? p.subject + ' ' : '') + p.title + '」を完了報告しました。\n';
+  if (p.submitReward > 0) {
+    body += '提出報酬: ' + p.submitReward + ' pt (付与済み)\n';
+  }
+  body += '完了報酬: ' + p.completeReward + ' pt (承認後に付与)\n\nアプリで承認してください。';
+  return body;
 }
 
 function handleVerifyPassword(password) {
@@ -172,72 +288,47 @@ function handleApproveTask(user, taskId, password) {
   if (!taskId) throw new Error('taskId が未指定');
 
   const ss = getSpreadsheet();
-  const taskSheetName = tasksSheetName(user);
-  const taskSheet = ss.getSheetByName(taskSheetName);
-  if (!taskSheet) throw new Error('シートがありません: ' + taskSheetName);
-  const historyName = historySheetName(user);
-  const historySheet = ss.getSheetByName(historyName);
-  if (!historySheet) throw new Error('シートがありません: ' + historyName);
+  const taskSheet = getTaskSheet(ss, user);
+  const histSheet = getHistorySheet(ss, user);
 
-  const lock = LockService.getScriptLock();
-  lock.waitLock(5000);
-  try {
-    const lastRow = taskSheet.getLastRow();
-    if (lastRow < 2) throw new Error('課題が見つかりません');
-    const values = taskSheet.getRange(2, 1, lastRow - 1, 7).getValues();
-    for (let i = 0; i < values.length; i++) {
-      if (String(values[i][0]) === String(taskId)) {
-        const status = values[i][5];
-        // C-1: 申請中の課題のみ承認可能
-        if (status === '承認済み') throw new Error('すでに承認済みです');
-        if (status !== '申請中') throw new Error('申請中の課題ではありません (現在: ' + (status || '未完了') + ')');
-        // H-1: 履歴追加→flush→状態更新の順で部分失敗を防ぐ
-        const subject = String(values[i][1] || '');
-        const title   = String(values[i][3] || '');
-        const points  = Number(values[i][4]) || 0;
-        const content = subject ? subject + ' ' + title : title;
-        historySheet.appendRow([formatDateTime(new Date()), content, points]);
-        SpreadsheetApp.flush();
-        taskSheet.getRange(i + 2, 6).setValue('承認済み');
-        return { taskId, points };
-      }
-    }
-    throw new Error('該当する課題が見つかりません');
-  } finally {
-    lock.releaseLock();
-  }
+  return withLock(() => {
+    return findTaskRow(taskSheet, taskId, (row, rowIndex) => {
+      const status = row[TASK_COL.STATUS] || STATUS.PENDING;
+      // C-1: 申請中の課題のみ承認可能
+      if (status === STATUS.APPROVED) throw new Error('すでに承認済みです');
+      if (status !== STATUS.APPLIED)  throw new Error('申請中の課題ではありません (現在: ' + status + ')');
+
+      const subject = String(row[TASK_COL.SUBJECT] || '');
+      const title   = String(row[TASK_COL.TITLE]   || '');
+      const points  = Number(row[TASK_COL.COMPLETE_REWARD]) || 0;
+      const content = subject ? subject + ' ' + title : title;
+
+      // H-1: 履歴追加→flush→状態更新の順で部分失敗を防ぐ
+      histSheet.appendRow([formatDateTime(new Date()), content, points]);
+      SpreadsheetApp.flush();
+      setTaskStatus(taskSheet, rowIndex, STATUS.APPROVED);
+
+      return { taskId, points };
+    });
+  });
 }
 
 function handleRejectTask(user, taskId, password) {
   checkPassword(password);
   if (!taskId) throw new Error('taskId が未指定');
 
-  const ss = getSpreadsheet();
-  const sheetName = tasksSheetName(user);
-  const sheet = ss.getSheetByName(sheetName);
-  if (!sheet) throw new Error('シートがありません: ' + sheetName);
+  const sheet = getTaskSheet(getSpreadsheet(), user);
 
-  const lock = LockService.getScriptLock();
-  lock.waitLock(5000);
-  try {
-    const lastRow = sheet.getLastRow();
-    if (lastRow < 2) throw new Error('課題が見つかりません');
-    const values = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
-    for (let i = 0; i < values.length; i++) {
-      if (String(values[i][0]) === String(taskId)) {
-        const status = values[i][5];
-        // C-2: 承認済みの差し戻しを防ぐ (履歴に既に記録されているため二重取り防止)
-        if (status === '承認済み') {
-          throw new Error('承認済みの課題は訂正依頼できません');
-        }
-        sheet.getRange(i + 2, 6).setValue('未完了');
-        return { taskId };
-      }
-    }
-    throw new Error('該当する課題が見つかりません');
-  } finally {
-    lock.releaseLock();
-  }
+  return withLock(() => {
+    return findTaskRow(sheet, taskId, (row, rowIndex) => {
+      const status = row[TASK_COL.STATUS] || STATUS.PENDING;
+      // C-2: 承認済みの差し戻しを防ぐ (履歴に既に記録されているため二重取り防止)
+      if (status === STATUS.APPROVED) throw new Error('承認済みの課題は訂正依頼できません');
+      // 「差し戻し」状態にする (=再提出時に提出報酬を付与しないマーカー)
+      setTaskStatus(sheet, rowIndex, STATUS.REJECTED);
+      return { taskId };
+    });
+  });
 }
 
 function handleCashout(user, amount, password) {
@@ -246,22 +337,16 @@ function handleCashout(user, amount, password) {
   if (!isFinite(amt) || amt <= 0) throw new Error('金額が不正です');
 
   const ss = getSpreadsheet();
+  const sheet = getHistorySheet(ss, user);
   const sheetName = historySheetName(user);
-  const sheet = ss.getSheetByName(sheetName);
-  if (!sheet) throw new Error('シートがありません: ' + sheetName);
 
-  let result;
-  const lock = LockService.getScriptLock();
-  lock.waitLock(5000);
-  try {
+  const result = withLock(() => {
     const total = readHistory(ss, sheetName)
       .reduce((s, h) => s + (Number(h.points) || 0), 0);
     if (amt > total) throw new Error('残高不足です (現在 ' + total + ' pt)');
     sheet.appendRow([formatDateTime(new Date()), 'お小遣い換金', -amt]);
-    result = { amount: amt, balance: total - amt };
-  } finally {
-    lock.releaseLock();
-  }
+    return { amount: amt, balance: total - amt };
+  });
 
   notify(
     user + 'の換金完了',
@@ -270,7 +355,9 @@ function handleCashout(user, amount, password) {
   return result;
 }
 
-// ---------- sheet readers ----------
+// ====================================================================
+// シート読み取り
+// ====================================================================
 
 function generateTaskId() {
   const ts = Math.floor(Date.now() / 1000);
@@ -283,32 +370,41 @@ function readTasks(ss, sheetName) {
   if (!sheet) return [];
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
-  const range = sheet.getRange(2, 1, lastRow - 1, 7);
-  const rows = range.getValues();
+  const rows = sheet.getRange(2, 1, lastRow - 1, TASK_COL_COUNT).getValues();
 
+  // ID 自動採番 + 状態の初期値 (空欄は「未完了」)
   let dirty = false;
   for (let i = 0; i < rows.length; i++) {
-    const hasTitle = rows[i][3] !== '' && rows[i][3] != null;
-    const hasId = rows[i][0] !== '' && rows[i][0] != null;
+    const hasTitle = rows[i][TASK_COL.TITLE]  !== '' && rows[i][TASK_COL.TITLE]  != null;
+    const hasId    = rows[i][TASK_COL.ID]     !== '' && rows[i][TASK_COL.ID]     != null;
+    const hasState = rows[i][TASK_COL.STATUS] !== '' && rows[i][TASK_COL.STATUS] != null;
     if (hasTitle && !hasId) {
       const id = generateTaskId();
-      rows[i][0] = id;
-      sheet.getRange(i + 2, 1).setValue(id);
+      rows[i][TASK_COL.ID] = id;
+      sheet.getRange(i + 2, TASK_COL.ID + 1).setValue(id);
+      dirty = true;
+    }
+    if (hasTitle && !hasState) {
+      rows[i][TASK_COL.STATUS] = STATUS.PENDING;
+      sheet.getRange(i + 2, TASK_COL.STATUS + 1).setValue(STATUS.PENDING);
       dirty = true;
     }
   }
   if (dirty) SpreadsheetApp.flush();
 
   return rows
-    .filter((r) => r[0] !== '' && r[3] !== '')
+    .filter((r) => r[TASK_COL.ID] !== '' && r[TASK_COL.TITLE] !== '')
     .map((r) => ({
-      id: String(r[0]),
-      subject: String(r[1] || ''),
-      category: String(r[2] || ''),
-      title: String(r[3] || ''),
-      points: Number(r[4]) || 0,
-      status: String(r[5] || '未完了'),
-      expiry: toDateString(r[6])
+      id:             String(r[TASK_COL.ID]),
+      status:         String(r[TASK_COL.STATUS] || STATUS.PENDING),
+      subject:        String(r[TASK_COL.SUBJECT]  || ''),
+      category:       String(r[TASK_COL.CATEGORY] || ''),
+      title:          String(r[TASK_COL.TITLE]    || ''),
+      submitReward:   Number(r[TASK_COL.SUBMIT_REWARD])   || 0,
+      completeReward: Number(r[TASK_COL.COMPLETE_REWARD]) || 0,
+      points:         Number(r[TASK_COL.COMPLETE_REWARD]) || 0, // 互換: 旧 points
+      minutes:        Number(r[TASK_COL.MINUTES]) || 0,
+      expiry:         toDateString(r[TASK_COL.EXPIRY])
     }));
 }
 
@@ -317,17 +413,19 @@ function readHistory(ss, sheetName) {
   if (!sheet) return [];
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
-  const rows = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
+  const rows = sheet.getRange(2, 1, lastRow - 1, HISTORY_COL_COUNT).getValues();
   return rows
-    .filter((r) => r[0] !== '' || r[1] !== '' || r[2] !== '')
+    .filter((r) => r[HISTORY_COL.DATE] !== '' || r[HISTORY_COL.CONTENT] !== '' || r[HISTORY_COL.POINTS] !== '')
     .map((r) => ({
-      date: toDateTimeString(r[0]),
-      content: String(r[1] || ''),
-      points: Number(r[2]) || 0
+      date:    toDateTimeString(r[HISTORY_COL.DATE]),
+      content: String(r[HISTORY_COL.CONTENT] || ''),
+      points:  Number(r[HISTORY_COL.POINTS]) || 0
     }));
 }
 
-// ---------- utils ----------
+// ====================================================================
+// 日時ユーティリティ
+// ====================================================================
 
 function formatDate(d) {
   return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy/MM/dd');
@@ -364,20 +462,19 @@ function truncDate(d) {
   return d;
 }
 
-// ---------- 初期セットアップ ----------
+// ====================================================================
+// 初期セットアップ
+// ====================================================================
 
 /**
- * 子ども1人分のシートを作成。GASエディタで関数を選んで実行。
- * 引数を直接渡せない場合は、下の setupSheetsLight / setupSheetsTiara のように
- * ラッパー関数を作って実行する。
+ * 子ども1人分のシートを作成。GASエディタから tmp() のような使い捨て関数で呼ぶ:
+ *   function tmp() { setupSheets('ライト'); }
  */
 function setupSheets(user) {
   if (!user) throw new Error('user が未指定。例: setupSheets("ライト")');
   const ss = getSpreadsheet();
-  const taskHeaders = ['ID', '科目', '分類', '項目', '報酬', '状態', '期限'];
-  const historyHeaders = ['日時', '内容', 'ポイント'];
-  ensureSheet(ss, tasksSheetName(user), taskHeaders);
-  ensureSheet(ss, historySheetName(user), historyHeaders);
+  ensureSheet(ss, tasksSheetName(user),   TASK_HEADERS);
+  ensureSheet(ss, historySheetName(user), HISTORY_HEADERS);
 }
 
 function ensureSheet(ss, name, headers) {
