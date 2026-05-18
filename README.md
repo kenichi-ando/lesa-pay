@@ -57,7 +57,7 @@ A列から順に **ID / ステータス / 分類 / タスク名 / 提出報酬 /
 | 列 | 内容 | 空欄でOK? |
 |----|----|----|
 | A | ID | ✅ (初回読み込みで `T<unix>_<rand>` 自動採番) |
-| B | ステータス (`Pending` / `Applied` / `Rejected` / `Approved`) | ✅ (空 = `Pending`) |
+| B | ステータス (`Pending` / `Submitted` / `Rejected` / `Approved`) | ✅ (空 = `Pending`) |
 | C | 分類 — 同じ値を持つ課題どうしを画面上でグループ化する見出し (例: `お手伝い`, `運動`) | ✅ (空 = `その他` 扱い) |
 | D | タスク名 | ❌ 必須 |
 | E | 提出報酬 (申請時に1回だけ加算) | ✅ (0扱い) |
@@ -97,17 +97,17 @@ npx wrangler secret put USERS                 # 子の一覧 (JSON, 下記参照
 npm run deploy
 ```
 
-`npm run deploy` の出力末尾に `Deployed lesapay triggers (...) https://<name>.<account>.workers.dev` のようにURLが表示されます。これがアプリのトップURLです。後から確認するときは Cloudflare ダッシュボード → Workers & Pages からも見られます。
+`npm run deploy` の出力末尾に `Deployed <worker-name> triggers (...) https://<worker-name>.<account>.workers.dev` のようにURLが表示されます。これがアプリのトップURLです。後から確認するときは Cloudflare ダッシュボード → Workers & Pages からも見られます。
 
 #### `USERS` の形式
 
-`USERS` は子の `key` (シート名サフィックス) と `label` (表示名) の配列を JSON 文字列で渡します。例:
+`USERS` は子の `key` (シート名サフィックス) と `label` (画面表示名) の配列を JSON 文字列で渡します。例:
 
 ```json
 [{"key":"Light","label":"ライト"},{"key":"Tiara","label":"ティアラ"}]
 ```
 
-`key` に `Light` を指定すると、対応するシート名は `課題_Light` / `履歴_Light` です。`label` を省略するとキーがそのまま表示されます。`wrangler secret put USERS` のプロンプトには上記JSONを1行で貼り付けてください。
+`key` に `Light` を指定すると、対応するシート(タブ)名は `Tasks_Light` / `History_Light` です。`label` を省略するとキーがそのまま表示されます (例: `[{"key":"Light"}]` だけでもOK)。`wrangler secret put USERS` のプロンプトには上記JSONを1行で貼り付けてください。
 
 子の追加・改名は `wrangler secret put USERS` で値を更新 → `npm run deploy` → 子用シートを準備、で反映されます。
 
@@ -119,7 +119,7 @@ npm run deploy
 openssl rand -hex 16   # 出力をそのまま `wrangler secret put ACCESS_TOKEN` に貼る
 ```
 
-デプロイ後、家族には次の **招待URL** を1度だけ送ります (例: `https://lesapay.<account>.workers.dev/?k=<token>`)。ブラウザで開くとアプリがトークンを `localStorage` に保存し、URLから `?k=` を自動的に取り除きます。以降は `https://lesapay.<account>.workers.dev/` をブックマークしておけばOK。
+デプロイ後、家族には次の **招待URL** を1度だけ送ります (例: `https://<worker-name>.<account>.workers.dev/?k=<token>`)。ブラウザで開くとアプリがトークンを `localStorage` に保存し、URLから `?k=` を自動的に取り除きます。以降は `https://<worker-name>.<account>.workers.dev/` をブックマークしておけばOK。
 
 トークンを変更したい (家族以外に漏れた疑いがあるなど) ときは、`wrangler secret put ACCESS_TOKEN` で新しい値を入れて再デプロイ → 古いリンクは自動的に無効になり、家族に新しい招待URLを配り直します。
 
@@ -139,7 +139,7 @@ openssl rand -hex 16   # 出力をそのまま `wrangler secret put ACCESS_TOKEN
 
 ## 運用フロー
 
-1. **課題の追加** (親) — スプレッドシートの「課題_◯◯」シートに行を追加。A列(ID)とB列(状態)は **空欄でOK**
+1. **課題の追加** (親) — スプレッドシートの `Tasks_◯◯` シートに行を追加。A列(ID)とB列(状態)は **空欄でOK**
 2. **完了報告** (子) — アプリの「完了報告」ボタン → 状態が `申請中` に。`LINE_TOKEN` 設定時は LINE 公式アカウントを友達追加した家族全員に通知
 3. **承認 / 訂正依頼** (親) — アプリ右上🔑 → パスワード入力 → 申請中の課題に「✓承認」「✏️訂正依頼」ボタン。承認すると履歴に自動記録。訂正依頼は状態を `差し戻し` に戻して子にやり直してもらう
 4. **ポイント消費** (親) — 保護者モードで「ポイントを使う」 → 履歴に `-XXX` で記録 + LINE 通知

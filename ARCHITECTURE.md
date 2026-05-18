@@ -181,7 +181,7 @@ automatically.
 | Index | Key       | Notes |
 | ----: | --------- | ----- |
 | 0     | `DATE`    | `yyyy/MM/dd HH:mm` |
-| 1     | `CONTENT` | Free-form, emoji-prefixed. e.g. `"✅ 英語 単語50個"`, `"📩 算数 計算ドリル"`, `"💸 ポイント消費"`. Older rows may still carry the legacy `" (提出)"` / `" (承認)"` suffix and are rendered as-is. |
+| 1     | `CONTENT` | Free-form, emoji-prefixed string set by the Worker. Format is `"<emoji> <category> <title>"` for task events (e.g. `"✅ Chores Wash dishes"`, `"📩 Study Spelling drill"`) and `HISTORY_LABEL.CASHOUT` for cashouts. The catalogue of prefixes lives in `schema.ts` `HISTORY_LABEL`. |
 | 2     | `POINTS`  | Positive (reward) or negative (cashout) |
 
 ### Runtime config (wrangler secrets)
@@ -197,17 +197,17 @@ synchronous. Changes require `wrangler secret put …` + `npm run deploy`.
 | `SHEET_ID`            | ✅   | Target spreadsheet (one per family). |
 | `ACCESS_TOKEN`        | ✅   | Shared invitation token gating `/api`. Verified with `constantTimeEqual`. |
 | `PARENT_PASSWORD`     | ✅   | Parent-mode password. Verified on approve / reject / cashout. |
-| `USERS`               | ✅   | JSON array of `{key,label}`. Drives the in-app roster. |
+| `USERS`               | ✅   | JSON array of `{key, label?}`. `key` is the sheet-name suffix (`Tasks_<key>` / `History_<key>`); `label` is an optional display name (defaults to `key`). |
 | `LINE_TOKEN`          | ⬜   | LINE Messaging API channel access token. Notifications skipped if unset. |
 
 `USERS` example:
 
 ```json
-[{"key":"Light","label":"ライト"},{"key":"Tiara","label":"ティアラ"}]
+[{"key":"Light"},{"key":"Tiara"}]
 ```
 
-`label` is optional (defaults to `key`). The parsed list is cached per Worker
-isolate, so successive requests don't re-parse the JSON.
+The parsed list is cached per Worker isolate, so successive requests don't
+re-parse the JSON.
 
 There is no `APP_URL` secret: deep-link URLs in LINE notifications are built
 from the request's own origin (`new URL(req.url).origin`), which is
@@ -368,10 +368,10 @@ the sheet with `client_email`).
 
 | Sheet              | Notes |
 | ------------------ | ----- |
-| `課題_<user>`      | One per child. Headers in row 1 must match `TASK_SCHEMA`. |
-| `履歴_<user>`      | One per child. Headers in row 1 must match `HISTORY_SCHEMA`. |
+| `Tasks_<user>`     | One per child. Column ORDER must match `TASK_SCHEMA`; row 1 headers are ignored. |
+| `History_<user>`   | One per child. Column ORDER must match `HISTORY_SCHEMA`; row 1 headers are ignored. |
 
-There is no longer a `設定` sheet — runtime config moved to wrangler secrets.
+Runtime config lives in `wrangler secret`s; there is no config sheet.
 
 ### OAuth scope
 
