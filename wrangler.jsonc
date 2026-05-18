@@ -5,7 +5,7 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "lesapay",
-	"main": "src/index.ts",
+	"main": "server/index.ts",
 	"compatibility_date": "2026-05-17",
 	"observability": {
 		"enabled": true
@@ -15,13 +15,13 @@
 		"nodejs_compat"
 	],
 	/**
-	 * Static assets — the frontend in `../public` is served by the Worker,
+	 * Static assets — the frontend in `./client` is served by the Worker,
 	 * so the Worker URL hosts both the SPA and the API on the same origin.
 	 * `run_worker_first` ensures /api requests reach the Worker even though
 	 * /index.html exists in the assets bundle.
 	 */
 	"assets": {
-		"directory": "./public",
+		"directory": "./client",
 		"binding": "ASSETS",
 		"run_worker_first": ["/api", "/api/*"]
 	}

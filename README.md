@@ -8,25 +8,24 @@
 
 ```
 lesa-pay/
-└── worker/                 # Cloudflare Worker (API + 静的配信を兼ねる)
-    ├── src/                # TypeScript ソース (API)
-    │   ├── index.ts        # ルーティング (/api 以外は静的アセットへ)
-    │   ├── actions.ts      # アクションテーブル + ハンドラ
-    │   ├── api.ts          # Sheets API v4 + Google OAuth (JWT)
-    │   ├── config.ts       # 設定シートの読み込み
-    │   ├── schema.ts       # 課題/履歴シートのスキーマ
-    │   ├── messages.ts     # サーバから返す文言
-    │   ├── notify.ts       # LINE Messaging API
-    │   ├── env.ts          # Worker bindings
-    │   └── util.ts
-    ├── public/             # フロント一式 (Worker が同オリジンで配信)
-    │   ├── index.html
-    │   ├── css/style.css
-    │   └── js/
-    │       ├── config.js   # localStorage キー定義のみ (個人情報なし)
-    │       ├── strings.js  # 画面文言 (i18n)
-    │       └── app.js      # アプリ本体
-    └── wrangler.jsonc      # Worker 設定 (静的アセットバインディング含む)
+├── server/                # Cloudflare Worker (TypeScript, API)
+│   ├── index.ts           # ルーティング (/api 以外は静的アセットへ)
+│   ├── actions.ts         # アクションテーブル + ハンドラ
+│   ├── api.ts             # Sheets API v4 + Google OAuth (JWT)
+│   ├── config.ts          # 設定シートの読み込み
+│   ├── schema.ts          # 課題/履歴シートのスキーマ
+│   ├── messages.ts        # サーバから返す文言
+│   ├── notify.ts          # LINE Messaging API
+│   ├── env.ts             # Worker bindings
+│   └── util.ts
+├── client/                # フロント一式 (Worker が同オリジンで配信)
+│   ├── index.html
+│   ├── css/style.css
+│   └── js/
+│       ├── config.js      # localStorage キー定義のみ (個人情報なし)
+│       ├── strings.js     # 画面文言 (i18n)
+│       └── app.js         # アプリ本体
+└── wrangler.jsonc         # Worker 設定 (静的アセットバインディング含む)
 ```
 
 API と SPA を同じ Worker (同一オリジン) で配信するため、フロントは `/api` を相対パスで叩くだけ。サーバURLの初期セットアップ画面はありません。
@@ -76,7 +75,6 @@ Worker は Sheets API v4 を Service Account で叩きます。
 ### 3. Cloudflare Worker をデプロイ
 
 ```bash
-cd worker
 npm install
 
 # シークレット登録 (一度だけ)

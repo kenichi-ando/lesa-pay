@@ -10,7 +10,7 @@ structured and how to extend it safely" — in English, alongside the source.
 ```
 ┌────────────────────┐    HTTPS POST     ┌──────────────────────┐
 │  Browser (Vanilla) │ ────────────────▶ │  Cloudflare Worker   │
-│  worker/public/*   │   {action, ...}   │  worker/src/*.ts     │
+│  client/*          │   {action, ...}   │  server/*.ts         │
 │                    │ ◀──────────────── │                      │
 │  - Render only     │   {ok, ...}       │  - Auth + Validation │
 │  - State in        │                   │  - All business logic│
@@ -18,7 +18,7 @@ structured and how to extend it safely" — in English, alongside the source.
 └────────────────────┘                   │  - LINE notifications│
         ▲                                └──────────────────────┘
         │  Worker also serves              │          │
-        │  static assets from public/      ▼          ▼
+        │  static assets from client/      ▼          ▼
         │                          ┌─────────────┐  ┌──────────────┐
         │                          │  Google     │  │  LINE        │
         │                          │  Spreadsheet│  │  Messaging   │
@@ -36,36 +36,35 @@ structured and how to extend it safely" — in English, alongside the source.
   Worker.
 - The frontend's only job is to render and to forward user intents.
 - API and SPA share the same origin: the Worker matches `/api` first, and falls
-  through to the static-assets binding (`worker/public/`) for everything else.
+  through to the static-assets binding (`client/`) for everything else.
   This is set up in `wrangler.jsonc` via `assets.run_worker_first`.
 
 ## Repository layout
 
 ```
 lesa-pay/
-└── worker/
-    ├── src/
-    │   ├── index.ts        # Top-level fetch handler + dispatch
-    │   ├── actions.ts      # ACTIONS table + handlers
-    │   ├── api.ts          # Sheets API v4 + Service Account JWT
-    │   ├── config.ts       # 設定 sheet → Config object
-    │   ├── schema.ts       # Sheet schema (TASK_SCHEMA, STATUS, etc.)
-    │   ├── messages.ts     # MSG catalog + fmt() template helper
-    │   ├── notify.ts       # LINE Messaging API
-    │   ├── env.ts          # Env bindings interface
-    │   └── util.ts         # HttpError, encoding, date helpers
-    ├── public/             # Served by the same Worker via assets binding
-    │   ├── index.html
-    │   ├── css/style.css
-    │   ├── icons/*.svg
-    │   ├── manifest.webmanifest
-    │   └── js/
-    │       ├── config.js   # localStorage keys (no personal data)
-    │       ├── strings.js  # All user-facing UI strings (i18n)
-    │       └── app.js      # Application code
-    ├── wrangler.jsonc      # Worker config (incl. ASSETS binding)
-    ├── tsconfig.json
-    └── package.json
+├── server/                # Cloudflare Worker (TypeScript)
+│   ├── index.ts           # Top-level fetch handler + dispatch
+│   ├── actions.ts         # ACTIONS table + handlers
+│   ├── api.ts             # Sheets API v4 + Service Account JWT
+│   ├── config.ts          # 設定 sheet → Config object
+│   ├── schema.ts          # Sheet schema (TASK_SCHEMA, STATUS, etc.)
+│   ├── messages.ts        # MSG catalog + fmt() template helper
+│   ├── notify.ts          # LINE Messaging API
+│   ├── env.ts             # Env bindings interface
+│   └── util.ts            # HttpError, encoding, date helpers
+├── client/                # Served by the same Worker via assets binding
+│   ├── index.html
+│   ├── css/style.css
+│   ├── icons/*.svg
+│   ├── manifest.webmanifest
+│   └── js/
+│       ├── config.js      # localStorage keys (no personal data)
+│       ├── strings.js     # All user-facing UI strings (i18n)
+│       └── app.js         # Application code
+├── wrangler.jsonc         # Worker config (incl. ASSETS binding)
+├── tsconfig.json
+└── package.json
 ```
 
 ## Design principles
@@ -84,7 +83,7 @@ These are non-negotiable rules. Breaking them tends to introduce hard-to-spot bu
 
 ### 2. New actions go through the `ACTIONS` table.
 
-`worker/src/actions.ts`:
+`server/actions.ts`:
 ```ts
 export const ACTIONS: Record<string, ActionDef> = {
   myNewAction: {
@@ -122,7 +121,7 @@ either: the SPA and `/api` are co-hosted, so the frontend just calls a relative
 
 ### 4. Side effects (notifications, etc.) belong on the server.
 
-LINE Broadcast is sent from `worker/src/notify.ts`. The frontend must never
+LINE Broadcast is sent from `server/notify.ts`. The frontend must never
 call external APIs directly. If a future feature needs a webhook, add an
 action and let the Worker make the outbound request.
 
@@ -138,7 +137,7 @@ read/append race, but for family-scale traffic we accept that.
 
 ### 6. Same-origin frontend ↔ API.
 
-The Worker serves both the SPA (`public/`) and the API (`/api`) on a single
+The Worker serves both the SPA (`client/`) and the API (`/api`) on a single
 origin. This is a deliberate choice that buys us several niceties:
 
 - No CORS preflight, so we POST plain `application/json` directly.
@@ -148,8 +147,8 @@ origin. This is a deliberate choice that buys us several niceties:
 
 ## Schema
 
-Source of truth is `worker/src/schema.ts`. The 設定 sheet driving runtime
-config is read by `worker/src/config.ts`.
+Source of truth is `server/schema.ts`. The 設定 sheet driving runtime
+config is read by `server/config.ts`.
 
 ### Task sheet (`課題_<user>`)
 
@@ -202,7 +201,7 @@ Cloudflare.
 STATUS = { PENDING: '未完了', APPLIED: '申請中', REJECTED: '差し戻し', APPROVED: '承認済み' }
 ```
 
-Authoritative copy is in `worker/src/schema.ts`. The frontend has a fallback
+Authoritative copy is in `server/schema.ts`. The frontend has a fallback
 copy in `app.js` and overwrites it at startup via the `getConfig` action so
 renaming a status in one place propagates after deploy.
 
@@ -221,8 +220,8 @@ double payout).
 
 ## i18n
 
-`worker/public/js/strings.js` is the single place for user-facing copy on the
-frontend; `worker/src/messages.ts` (`MSG`) is the equivalent on the server.
+`client/js/strings.js` is the single place for user-facing copy on the
+frontend; `server/messages.ts` (`MSG`) is the equivalent on the server.
 Two channels on the client:
 
 1. **Static HTML** uses `data-i18n="key"` (text content) or
@@ -241,7 +240,7 @@ the schema, because the spreadsheet is the parent-facing source of truth.
 
 ## Code map
 
-### Worker (`worker/src/`)
+### Worker (`server/`)
 
 - `index.ts` — `fetch` handler. Routes `POST /api` to `dispatch()`, everything
   else to the static `ASSETS` binding. Catches `HttpError` and converts to JSON.
@@ -259,7 +258,7 @@ the schema, because the spreadsheet is the parent-facing source of truth.
 - `util.ts` — `HttpError`, `constantTimeEqual`, b64url, date helpers,
   `isExpired` (Asia/Tokyo).
 
-### Frontend (`worker/public/js/app.js`)
+### Frontend (`client/js/app.js`)
 
 - `STATUS` / `STRINGS` — bootstrapped fallbacks. Real values come from server.
 - `tr()` / `applyI18n()` — translation helpers.
@@ -293,19 +292,18 @@ the schema, because the spreadsheet is the parent-facing source of truth.
    `casTaskStatus` for any task-row state transition; throw `HttpError` on
    bad input — `index.ts` packages errors as `{ ok: false, error: '...' }`.
 3. **Frontend** — call `await api('newAction', { foo })`.
-4. **Strings** — add new server messages to `worker/src/messages.ts`,
-   client strings to `worker/public/js/strings.js`.
+4. **Strings** — add new server messages to `server/messages.ts`,
+   client strings to `client/js/strings.js`.
 5. **Deploy** (`npm run deploy`).
 
 ## Local development
 
 ```bash
-cd worker
 npm install
 npm run dev          # wrangler dev — local Worker on http://localhost:8787
 ```
 
-`wrangler dev` serves both the API and the static assets in `public/`. Secrets
+`wrangler dev` serves both the API and the static assets in `client/`. Secrets
 from `wrangler secret put` are available locally too. There is no separate
 preview server for the SPA.
 
@@ -317,7 +315,6 @@ environment, or use `wrangler.jsonc` env stanzas if you set up multiple.
 ## Deploy
 
 ```bash
-cd worker
 npm run deploy
 # → wrangler deploy → published to https://lesapay.<account>.workers.dev/
 ```
@@ -372,7 +369,7 @@ because the Service Account itself owns its delegation.
 
 - No Service Worker / offline caching. Adding one would conflict with the
   "always show the latest deploy" behaviour we want during active development.
-- No bundler for the frontend. The Worker serves `public/` as-is. Adding
+- No bundler for the frontend. The Worker serves `client/` as-is. Adding
   bundling trades simplicity for marginal performance — avoid until needed.
 - No automated tests. The behaviour surface is small enough to verify manually
   per change. `npx tsc --noEmit` is the only static check; `wrangler deploy`
@@ -386,7 +383,7 @@ When reviewing a PR, the things most likely to be wrong:
    (`TASK_COL_COUNT` should propagate; double-check any range string like
    `${tasksSheet}!A2:${TASK_LAST_COL_LETTER}` and the `shapeTasks` mapper).
 2. A new state was added but only some of the comparison sites were updated.
-   Search for `STATUS.` in both `worker/src/` and `worker/public/js/app.js`.
+   Search for `STATUS.` in both `server/` and `client/js/app.js`.
 3. A new UI string was added but only added to `strings.js`, not actually
    referenced via `tr(...)` (or vice versa). Server-side, the equivalent slip
    is referencing a `MSG.x` key that doesn't exist.
