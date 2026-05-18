@@ -1,10 +1,10 @@
-// LesaPay configuration (no personal data here).
-window.LESAPAY_CONFIG = {
+// LesserPay configuration (no personal data here).
+window.LESSERPAY_CONFIG = {
   STORAGE_KEYS: {
-    user:        'lesapay_user',         // Currently selected sheet-name suffix (key into the USERS list)
-    parentPw:    'lesapay_parent_pw',    // Parent password, persisted once after a successful login.
+    user:        'lesserpay_user',         // Currently selected sheet-name suffix (key into the USERS list)
+    parentPw:    'lesserpay_parent_pw',    // Parent password, persisted once after a successful login.
                                          // Used for auto-login from a LINE ?parent=1 link.
-    accessToken: 'lesapay_access_token'  // Shared invitation token. Captured from ?k=<token> on
+    accessToken: 'lesserpay_access_token'  // Shared invitation token. Captured from ?k=<token> on
                                          // first visit, then sent as Authorization: Bearer on every
                                          // /api call. Without it, no spreadsheet data is fetched.
   },

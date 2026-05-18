@@ -1,7 +1,7 @@
-# LesaPay architecture
+# LesserPay architecture
 
 This is the developer-facing companion to `README.md`. The README covers
-"how to set up and run LesaPay for your family" (in Japanese, since the
+"how to set up and run LesserPay for your family" (in Japanese, since the
 audience is the parent operating it). This file covers "how the code is
 structured and how to extend it safely" — in English, alongside the source.
 
@@ -42,7 +42,7 @@ structured and how to extend it safely" — in English, alongside the source.
 ## Repository layout
 
 ```
-lesa-pay/
+lesser-pay/
 ├── server/                # Cloudflare Worker (TypeScript)
 │   ├── index.ts           # Top-level fetch handler + dispatch
 │   ├── actions.ts         # ACTIONS table + handlers
@@ -109,9 +109,9 @@ await api('myNewAction', { foo: 42 });
 
 | Key                     | Purpose |
 | ----------------------- | ------- |
-| `lesapay_user`          | Currently selected sheet-name suffix (a key into the `USERS` roster) |
-| `lesapay_parent_pw`     | Last successful parent password — used for parent-mode deep-link auto-login |
-| `lesapay_access_token`  | Shared invitation token, captured once from `?k=<token>` and sent on every `/api` call as `Authorization: Bearer …`. Cleared on 401 (token rotated server-side). |
+| `lesserpay_user`          | Currently selected sheet-name suffix (a key into the `USERS` roster) |
+| `lesserpay_parent_pw`     | Last successful parent password — used for parent-mode deep-link auto-login |
+| `lesserpay_access_token`  | Shared invitation token, captured once from `?k=<token>` and sent on every `/api` call as `Authorization: Bearer …`. Cleared on 401 (token rotated server-side). |
 
 Tasks and history are *not* cached across reloads. The user roster itself is
 *not* persisted in the browser — it is fetched from the Worker via `getConfig`

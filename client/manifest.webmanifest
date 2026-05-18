@@ -1,6 +1,6 @@
 {
-  "name": "LesaPay",
-  "short_name": "LesaPay",
+  "name": "LesserPay",
+  "short_name": "LesserPay",
   "description": "家庭内報酬管理アプリ",
   "start_url": "/",
   "display": "standalone",

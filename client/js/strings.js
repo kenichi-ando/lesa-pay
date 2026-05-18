@@ -1,12 +1,12 @@
-// LesaPay UI string resources.
+// LesserPay UI string resources.
 //
 // All user-facing strings live here. Use `tr('foo.bar')` from app.js,
 // `tr('foo.bar', { n: 3 })` to interpolate `{n}`.
 //
 // HTML elements use `data-i18n="key"` (replaces textContent) or
 // `data-i18n-attr-<attr>="key"` (replaces an attribute, e.g. placeholder/aria-label).
-window.LESAPAY_STRINGS = {
-  app: { title: 'LesaPay' },
+window.LESSERPAY_STRINGS = {
+  app: { title: 'LesserPay' },
 
   header: {
     parentMode: '保護者モード',

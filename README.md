@@ -1,4 +1,4 @@
-# LesaPay (レサペイ)
+# LesserPay (レサペイ)
 
 家庭内報酬管理アプリ。子どもが日々の目標を達成 → スマホから完了報告 → 親が承認 → ポイントが貯まる → 親がポイントを使う（お小遣い化など）一連の流れを、Cloudflare Workers + Google スプレッドシートで運用します。
 
@@ -7,7 +7,7 @@
 ## 構成
 
 ```
-lesa-pay/
+lesser-pay/
 ├── server/                # Cloudflare Worker (TypeScript, API)
 │   ├── index.ts           # ルーティング (/api 以外は静的アセットへ)
 │   ├── actions.ts         # アクションテーブル + ハンドラ
@@ -46,7 +46,7 @@ npx wrangler login   # ブラウザが開いて Cloudflare 認証
 
 ### 1. スプレッドシート作成（家族で1つ）
 
-1. 新しい Google スプレッドシートを作成（例: `LesaPay`）
+1. 新しい Google スプレッドシートを作成（例: `LesserPay`）
 2. シートID（URL の `/d/` と `/edit` の間）を控える
 3. 子ごとに `Tasks_<子の名前>` と `History_<子の名前>` の2シート(タブ)を作る — タブ名の大文字小文字は完全一致が必要です (例: `Tasks_Light`, `History_Light`)
 
@@ -80,7 +80,7 @@ Worker は Sheets API v4 を Service Account で叩きます。
 
 ### 3. Cloudflare Worker をデプロイ
 
-`wrangler.jsonc` の `"name"` を自分が使いたい Worker 名に変更します (デフォルトは `lesapay`)。これがそのままデプロイURLのサブドメインになります (例: `"happy-coins"` → `https://happy-coins.<account>.workers.dev/`)。
+`wrangler.jsonc` の `"name"` を自分が使いたい Worker 名に変更します (デフォルトは `lesser-pay`)。これがそのままデプロイURLのサブドメインになります (例: `"happy-coins"` → `https://happy-coins.<account>.workers.dev/`)。
 
 ```bash
 npm install

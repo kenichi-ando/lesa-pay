@@ -1,5 +1,5 @@
 /**
- * LesaPay API (Cloudflare Worker).
+ * LesserPay API (Cloudflare Worker).
  *
  * Reads and writes a Google Spreadsheet via Sheets API v4 using a service
  * account. The same Worker also serves the SPA from `public/` via the
@@ -62,9 +62,9 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
 		return json({ ok: false, error: `Invalid user: ${body.user}` }, 400);
 	}
 
-	// origin (e.g. https://lesapay.rp0.workers.dev) is used by handlers that
-	// embed a deep link in LINE notifications. Trustworthy on Cloudflare —
-	// `req.url` reflects the edge host, not a Host header from the client.
+	// Origin is used by handlers that embed a deep link in LINE notifications.
+	// Trustworthy on Cloudflare — `req.url` reflects the edge host, not a
+	// Host header from the client.
 	const origin = new URL(req.url).origin;
 	const result = await def.handler(body, env, origin);
 	return json({ ok: true, ...(result as object) });

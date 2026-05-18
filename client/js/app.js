@@ -1,9 +1,9 @@
 (function () {
   'use strict';
 
-  const CONFIG  = window.LESAPAY_CONFIG;
+  const CONFIG  = window.LESSERPAY_CONFIG;
   const SK      = CONFIG.STORAGE_KEYS;
-  const STRINGS = window.LESAPAY_STRINGS || {};
+  const STRINGS = window.LESSERPAY_STRINGS || {};
 
   // Task status values. Authoritative source is the server (server/schema.ts);
   // bootstrap() awaits refreshServerConfig() before any rendering runs, so by
