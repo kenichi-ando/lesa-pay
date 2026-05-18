@@ -315,7 +315,6 @@ function shapeTasks(rows: unknown[][]) {
 		.map((r) => ({
 			id: String(r[TASK_COL.ID]),
 			status: String(r[TASK_COL.STATUS] ?? STATUS.PENDING) || STATUS.PENDING,
-			subject: String(r[TASK_COL.SUBJECT] ?? ""),
 			category: String(r[TASK_COL.CATEGORY] ?? ""),
 			title: String(r[TASK_COL.TITLE] ?? ""),
 			submitReward: toNumber(r[TASK_COL.SUBMIT_REWARD]),

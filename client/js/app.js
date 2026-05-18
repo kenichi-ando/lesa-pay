@@ -262,7 +262,7 @@
 
     const groups = new Map();
     for (const t of visible) {
-      const key = t.subject || tr('tasks.otherGroup');
+      const key = t.category || tr('tasks.otherGroup');
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(t);
     }
@@ -323,10 +323,6 @@
     return `
       <div class="task-item ${statusClass}">
         <div class="task-info">
-          <div class="task-meta">
-            ${t.subject ? `<span class="task-tag subject">${escapeHtml(t.subject)}</span>` : ''}
-            ${t.category ? `<span class="task-tag category">${escapeHtml(t.category)}</span>` : ''}
-          </div>
           <div class="task-title">${escapeHtml(t.title)}</div>
           <div class="task-footer">
             ${formatRewards(t)}

@@ -594,35 +594,6 @@ body {
   min-width: 0;
 }
 
-.task-meta {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-bottom: 4px;
-}
-
-.task-tag {
-  font-size: 11px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--color-bg);
-  color: var(--color-text-light);
-  font-weight: 700;
-  letter-spacing: 0.3px;
-}
-
-.task-tag.subject {
-  background: var(--color-cream);
-  color: var(--color-primary-dark);
-  border: 1px solid var(--color-primary-light);
-}
-
-.task-tag.category {
-  background: #e8f3dc;
-  color: var(--color-bamboo-dark);
-  border: 1px solid #b9d39a;
-}
-
 .task-title {
   font-size: 15px;
   font-weight: 700;
@@ -796,11 +767,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-/* Inside a group the subject tag duplicates the heading, so hide it */
-.task-group-items .task-tag.subject {
-  display: none;
 }
 
 /* ---------------- History ---------------- */

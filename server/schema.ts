@@ -22,7 +22,6 @@ export const STATUS = {
 export const TASK_SCHEMA = [
 	{ key: "ID", header: "ID" },
 	{ key: "STATUS", header: "状態" },
-	{ key: "SUBJECT", header: "科目" },
 	{ key: "CATEGORY", header: "分類" },
 	{ key: "TITLE", header: "項目" },
 	{ key: "SUBMIT_REWARD", header: "提出報酬" },

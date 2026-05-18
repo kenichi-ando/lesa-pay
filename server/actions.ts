@@ -111,10 +111,9 @@ async function handleApplyTask(env: Env, user: string, taskId: string, origin: s
 
 	const submitReward = toNumber(row[TASK_COL.SUBMIT_REWARD]);
 	const completeReward = toNumber(row[TASK_COL.COMPLETE_REWARD]);
-	const subject = String(row[TASK_COL.SUBJECT] ?? "");
 	const category = String(row[TASK_COL.CATEGORY] ?? "");
 	const title = String(row[TASK_COL.TITLE] ?? "");
-	const taskLabel = composeTaskLabel(subject, category, title);
+	const taskLabel = composeTaskLabel(category, title);
 
 	// Submit reward fires only on the first transition (PENDING → APPLIED).
 	// Resubmitting from REJECTED skips the submit reward.
@@ -148,10 +147,10 @@ async function handleApplyTask(env: Env, user: string, taskId: string, origin: s
 	return { taskId };
 }
 
-// "subject category title" with empty parts skipped. Used both for history
-// CONTENT and LINE notification bodies, so all three callers stay consistent.
-function composeTaskLabel(subject: string, category: string, title: string): string {
-	return [subject, category, title].filter((s) => s && s.length > 0).join(" ");
+// "category title" with empty parts skipped. Used both for history CONTENT
+// and LINE notification bodies, so the two callers stay consistent.
+function composeTaskLabel(category: string, title: string): string {
+	return [category, title].filter((s) => s && s.length > 0).join(" ");
 }
 
 function buildApplyNotifyBody(
@@ -184,11 +183,10 @@ async function handleApproveTask(env: Env, user: string, taskId: string, passwor
 		throw new HttpError(409, fmt(MSG.errNotAppliedTask, { status: currentStatus }));
 	}
 
-	const subject = String(row[TASK_COL.SUBJECT] ?? "");
 	const category = String(row[TASK_COL.CATEGORY] ?? "");
 	const title = String(row[TASK_COL.TITLE] ?? "");
 	const points = toNumber(row[TASK_COL.COMPLETE_REWARD]);
-	const content = HISTORY_LABEL.APPROVE_PREFIX + composeTaskLabel(subject, category, title);
+	const content = HISTORY_LABEL.APPROVE_PREFIX + composeTaskLabel(category, title);
 
 	// Append history first, then flip status. A partial failure that stops
 	// after the history append leaves the task still APPLIED (visible to the

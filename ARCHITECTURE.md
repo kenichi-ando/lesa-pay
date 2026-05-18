@@ -161,13 +161,12 @@ are derived from it.
 | ----: | ------------------ | ------ | ----- |
 | 0     | `ID`               | ID     | Auto-generated on read if blank (`T<unix>_<rand>`) |
 | 1     | `STATUS`           | 状態    | `STATUS.PENDING` / `APPLIED` / `REJECTED` / `APPROVED` |
-| 2     | `SUBJECT`          | 科目    | Used for grouping in the UI |
-| 3     | `CATEGORY`         | 分類    | |
-| 4     | `TITLE`            | 項目    | Required |
-| 5     | `SUBMIT_REWARD`    | 提出報酬 | Granted on the *first* submit only |
-| 6     | `COMPLETE_REWARD`  | 完了報酬 | Granted when the parent approves |
-| 7     | `MINUTES`          | 時間    | Estimated minutes; display only |
-| 8     | `EXPIRY`           | 期限    | YYYY/MM/DD; tasks past expiry can't be applied |
+| 2     | `CATEGORY`         | 分類    | Used as the group heading in the UI. Empty rows fall under `tasks.otherGroup`. |
+| 3     | `TITLE`            | 項目    | Required |
+| 4     | `SUBMIT_REWARD`    | 提出報酬 | Granted on the *first* submit only |
+| 5     | `COMPLETE_REWARD`  | 完了報酬 | Granted when the parent approves |
+| 6     | `MINUTES`          | 時間    | Estimated minutes; display only |
+| 7     | `EXPIRY`           | 期限    | YYYY/MM/DD; tasks past expiry can't be applied |
 
 To add a column: insert an entry into `TASK_SCHEMA`. Everything else updates
 automatically. Existing sheets need a manual header insert.
