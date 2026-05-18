@@ -391,10 +391,18 @@ body {
 .balance-label::before { content: "💖 "; }
 
 .balance-value {
+  /* The big number stays centered as before. The cashout button lives in this
+   * container too but is absolute-positioned to the card's right edge so it
+   * doesn't push the number off-center. The gradient/filter for the big
+   * number lives on .balance-number so it doesn't bleed onto the button. */
+  margin-bottom: 8px;
+  line-height: 1;
+}
+
+.balance-number {
   font-size: 52px;
   font-weight: 900;
   line-height: 1;
-  margin-bottom: 8px;
   background: linear-gradient(180deg, #c96a3a 0%, #8a3f1f 100%);
   -webkit-background-clip: text;
   background-clip: text;
@@ -456,6 +464,64 @@ body {
 
 .icon-btn:active {
   transform: rotate(180deg);
+}
+
+/* ---------------- Tabs ---------------- */
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  border-bottom: 2px solid var(--color-border);
+}
+
+.tab {
+  position: relative;
+  background: none;
+  border: none;
+  padding: 10px 14px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--color-text-light);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px; /* overlap the .tabs bottom border */
+  transition: color 0.15s;
+}
+
+.tab:hover {
+  color: var(--color-primary-dark);
+}
+
+.tab.is-active {
+  color: var(--color-primary-dark);
+  border-bottom-color: var(--color-primary-dark);
+}
+
+.tab-emoji {
+  font-size: 18px;
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--color-warning);
+  color: white;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.tab-refresh {
+  margin-left: auto;
 }
 
 /* ---------------- Task list ---------------- */
@@ -815,62 +881,31 @@ body {
   animation: panda-bounce 3s ease-in-out infinite;
 }
 
-/* ---------------- Parent panel ---------------- */
-.parent-panel {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: var(--color-cream);
-  border-top: 4px solid var(--color-warning);
-  padding: 16px 20px calc(16px + var(--safe-area-bottom));
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
-  z-index: 90;
-}
-
-.parent-panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.parent-panel-title {
-  font-size: 13px;
-  font-weight: 800;
-  color: var(--color-primary-dark);
-}
-
-.text-btn {
-  background: none;
-  border: none;
-  color: var(--color-text-light);
-  font-size: 13px;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.parent-actions {
-  display: flex;
-  gap: 12px;
-}
-
-.action-btn {
-  flex: 1;
+/* ---------------- Balance card cashout button (parent mode only) ---------------- */
+.balance-cashout {
+  /* Sits directly under the points number — small, unobtrusive, only shown
+   * when parent mode is on. The kid-mode card is unchanged. */
+  display: inline-block;
+  margin-top: 12px;
   background: linear-gradient(135deg, #ffd96b 0%, #e8a23a 100%);
   color: white;
   border: none;
-  padding: 16px;
-  border-radius: 18px;
-  font-size: 17px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-size: 13px;
   font-weight: 800;
   cursor: pointer;
   box-shadow: var(--shadow-sm);
   position: relative;
   overflow: hidden;
+  white-space: nowrap;
 }
 
-.action-btn::after {
+.balance-cashout:active {
+  transform: scale(0.96);
+}
+
+.balance-cashout::after {
   content: "";
   position: absolute;
   top: -50%; left: -50%;
@@ -878,10 +913,6 @@ body {
   background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.4) 50%, transparent 70%);
   animation: shine 3s ease-in-out infinite;
   pointer-events: none;
-}
-
-.action-btn:active {
-  transform: scale(0.98);
 }
 
 /* ---------------- Modal ---------------- */
@@ -933,6 +964,14 @@ body {
   font-size: 14px;
   color: var(--color-text-light);
   margin-bottom: 16px;
+}
+
+.cashout-balance {
+  font-size: 14px;
+  color: var(--color-primary-dark);
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 12px;
 }
 
 .modal-input {
@@ -1078,6 +1117,21 @@ body {
 
 /* ---------------- Responsive ---------------- */
 @media (max-width: 480px) {
-  .balance-value { font-size: 44px; }
+  .balance-number { font-size: 44px; }
   .app-title { font-size: 20px; }
 }
+
+/* ---------------- Locked screen (no access token) ---------------- */
+.locked-panel {
+  max-width: 420px;
+  margin: 80px auto;
+  padding: 32px 24px;
+  text-align: center;
+  background: #fff8f1;
+  border: 1px solid #f0d6b8;
+  border-radius: 18px;
+  box-shadow: 0 4px 16px rgba(126, 70, 30, 0.08);
+}
+.locked-mascot { display: block; margin: 0 auto 12px; }
+.locked-title  { margin: 0 0 8px; font-size: 22px; color: #7a3618; }
+.locked-desc   { margin: 0; color: #6b4527; line-height: 1.6; }

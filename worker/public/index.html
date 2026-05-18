@@ -106,40 +106,40 @@
       <svg class="balance-mascot" width="48" height="48" aria-hidden="true"><use href="#lesser-panda"/></svg>
       <div class="balance-label" data-i18n="balance.label"></div>
       <div class="balance-value">
-        <span id="balance-amount">---</span>
-        <span class="balance-unit" data-i18n="balance.unit"></span>
+        <span class="balance-number">
+          <span id="balance-amount">---</span>
+          <span class="balance-unit" data-i18n="balance.unit"></span>
+        </span>
       </div>
       <div class="balance-meta" id="balance-meta" data-i18n="balance.loading"></div>
+      <button id="cashout-btn" class="balance-cashout hidden" type="button" data-i18n="cashout.button"></button>
     </section>
 
     <section class="content-section">
-      <div class="section-header">
-        <h2 class="section-title"><span class="section-emoji">📋</span><span data-i18n="tasks.sectionTitle"></span></h2>
-        <button id="refresh-btn" class="icon-btn" data-i18n-attr-aria-label="header.refresh">🔄</button>
+      <div class="tabs" role="tablist">
+        <button id="tab-tasks"   class="tab is-active" type="button" role="tab" aria-controls="panel-tasks"   data-tab="tasks">
+          <span class="tab-emoji">📋</span><span class="tab-label" data-i18n="tasks.sectionTitle"></span>
+          <span id="tab-tasks-badge" class="tab-badge hidden"></span>
+        </button>
+        <button id="tab-history" class="tab"           type="button" role="tab" aria-controls="panel-history" data-tab="history">
+          <span class="tab-emoji">🐾</span><span class="tab-label" data-i18n="history.sectionTitle"></span>
+        </button>
+        <button id="refresh-btn" class="icon-btn tab-refresh" type="button" data-i18n-attr-aria-label="header.refresh">🔄</button>
       </div>
-      <div id="tasks-list" class="tasks-list">
-        <div class="empty-state" data-i18n="tasks.loading"></div>
+
+      <div id="panel-tasks" class="tab-panel" role="tabpanel" aria-labelledby="tab-tasks">
+        <div id="tasks-list" class="tasks-list">
+          <div class="empty-state" data-i18n="tasks.loading"></div>
+        </div>
+      </div>
+
+      <div id="panel-history" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-history">
+        <div id="history-list" class="history-list">
+          <div class="empty-state" data-i18n="history.loading"></div>
+        </div>
       </div>
     </section>
 
-    <section class="content-section">
-      <div class="section-header">
-        <h2 class="section-title"><span class="section-emoji">🐾</span><span data-i18n="history.sectionTitle"></span></h2>
-      </div>
-      <div id="history-list" class="history-list">
-        <div class="empty-state" data-i18n="history.loading"></div>
-      </div>
-    </section>
-
-    <div id="parent-panel" class="parent-panel hidden">
-      <div class="parent-panel-header">
-        <span class="parent-panel-title" data-i18n="header.parentModeOn"></span>
-        <button id="parent-logout-btn" class="text-btn" data-i18n="header.lock"></button>
-      </div>
-      <div class="parent-actions">
-        <button id="cashout-btn" class="action-btn" data-i18n="cashout.button"></button>
-      </div>
-    </div>
   </main>
 
   <div id="parent-modal" class="modal hidden" role="dialog" aria-modal="true">
@@ -161,6 +161,7 @@
       <svg class="modal-mascot" width="64" height="64"><use href="#lesser-panda"/></svg>
       <h3 class="modal-title" data-i18n="cashout.title"></h3>
       <p class="modal-desc" data-i18n="cashout.desc"></p>
+      <div id="cashout-balance" class="cashout-balance"></div>
       <input type="number" id="cashout-amount" class="modal-input" inputmode="numeric" min="1" placeholder="500" />
       <div class="modal-actions">
         <button id="cashout-cancel-btn" class="btn btn-secondary" data-i18n="cashout.cancel"></button>

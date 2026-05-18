@@ -13,7 +13,7 @@
 
 import { ACTIONS, type ActionRequest } from "./actions";
 import type { Env } from "./env";
-import { HttpError, isValidUser } from "./util";
+import { HttpError, constantTimeEqual, isValidUser } from "./util";
 
 export type { Env };
 
@@ -27,6 +27,9 @@ export default {
 
 		try {
 			if (url.pathname === "/api" && req.method === "POST") {
+				if (!authorized(req, env)) {
+					return json({ ok: false, error: "Unauthorized" }, 401);
+				}
 				return await dispatch(req, env);
 			}
 			// Anything else is a static asset (SPA shell, JS, CSS, icons, etc.).
@@ -67,11 +70,23 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
 	return json({ ok: true, ...(result as object) });
 }
 
+// Gate /api with the shared ACCESS_TOKEN secret. The token is delivered to the
+// browser once via an invitation URL (?k=<token>), persisted in localStorage,
+// and sent on every /api call as Authorization: Bearer <token>. Without it,
+// the static SPA still loads — but no spreadsheet data is ever exposed.
+function authorized(req: Request, env: Env): boolean {
+	if (!env.ACCESS_TOKEN) return false;
+	const header = req.headers.get("Authorization") ?? "";
+	const m = header.match(/^Bearer\s+(.+)$/i);
+	if (!m) return false;
+	return constantTimeEqual(m[1], env.ACCESS_TOKEN);
+}
+
 function corsHeaders(): Record<string, string> {
 	return {
 		"Access-Control-Allow-Origin": "*",
 		"Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-		"Access-Control-Allow-Headers": "Content-Type",
+		"Access-Control-Allow-Headers": "Content-Type, Authorization",
 		"Access-Control-Max-Age": "86400",
 	};
 }

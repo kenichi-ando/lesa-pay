@@ -283,7 +283,11 @@ export async function appendHistoryRow(
 	row: (string | number)[],
 ): Promise<void> {
 	const range = `${historySheet}!A:${HISTORY_LAST_COL_LETTER}`;
-	const url = `https://sheets.googleapis.com/v4/spreadsheets/${env.SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+	// RAW (vs USER_ENTERED): keep the date column as a literal "yyyy/MM/dd HH:mm"
+	// string. With USER_ENTERED, Sheets parses it as a date and stores a serial
+	// number, which then renders as "46160.4166…" unless the column is formatted
+	// as a date — leaking spreadsheet semantics into the UI.
+	const url = `https://sheets.googleapis.com/v4/spreadsheets/${env.SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
 	const res = await fetch(url, {
 		method: "POST",
 		headers: {

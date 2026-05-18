@@ -44,6 +44,15 @@ export function toDateString(v: unknown): string {
 
 export function toDateTimeString(v: unknown): string {
 	if (v == null || v === "") return "";
+	// Pre-fix history rows were appended with valueInputOption=USER_ENTERED, so
+	// Sheets coerced "yyyy/MM/dd HH:mm" into a serial number (days since
+	// 1899/12/30). Decode those rows on read so the UI stays clean. New rows
+	// are written RAW and arrive here as strings, hitting the early return.
+	if (typeof v === "number" && Number.isFinite(v)) {
+		const epoch = Date.UTC(1899, 11, 30); // Sheets epoch in UTC ms
+		const ms = epoch + v * 86400 * 1000;
+		return formatDateTime(new Date(ms));
+	}
 	return String(v);
 }
 

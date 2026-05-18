@@ -43,12 +43,15 @@
   // The user list itself is owned by the server (設定 sheet). We only
   // remember the most recently selected user key and the parent password.
   const store = {
-    getUser()       { return localStorage.getItem(SK.user); },
-    setUser(user)   { localStorage.setItem(SK.user, user); },
-    clearUser()     { localStorage.removeItem(SK.user); },
-    getParentPw()   { return localStorage.getItem(SK.parentPw); },
-    setParentPw(pw) { localStorage.setItem(SK.parentPw, pw); },
-    clearParentPw() { localStorage.removeItem(SK.parentPw); }
+    getUser()           { return localStorage.getItem(SK.user); },
+    setUser(user)       { localStorage.setItem(SK.user, user); },
+    clearUser()         { localStorage.removeItem(SK.user); },
+    getParentPw()       { return localStorage.getItem(SK.parentPw); },
+    setParentPw(pw)     { localStorage.setItem(SK.parentPw, pw); },
+    clearParentPw()     { localStorage.removeItem(SK.parentPw); },
+    getAccessToken()    { return localStorage.getItem(SK.accessToken); },
+    setAccessToken(tok) { localStorage.setItem(SK.accessToken, tok); },
+    clearAccessToken()  { localStorage.removeItem(SK.accessToken); }
   };
 
   // ---------- State ----------
@@ -60,7 +63,8 @@
     tasks: [],
     history: [],
     loading: false,
-    booted: false
+    booted: false,
+    activeTab: 'tasks'  // 'tasks' | 'history' — which content panel is visible
   };
 
   let dataCache = null;
@@ -78,10 +82,13 @@
     userLabel: $('user-label'),
     userPopover: $('user-popover'),
     userPopoverList: $('user-popover-list'),
-    parentPanel: $('parent-panel'),
-    parentLogout: $('parent-logout-btn'),
     cashoutBtn: $('cashout-btn'),
     refreshBtn: $('refresh-btn'),
+    tabTasks: $('tab-tasks'),
+    tabHistory: $('tab-history'),
+    tabTasksBadge: $('tab-tasks-badge'),
+    panelTasks: $('panel-tasks'),
+    panelHistory: $('panel-history'),
     balance: $('balance-amount'),
     balanceMeta: $('balance-meta'),
     tasksList: $('tasks-list'),
@@ -96,6 +103,7 @@
     cashoutSubmit: $('cashout-submit-btn'),
     cashoutCancel: $('cashout-cancel-btn'),
     cashoutError: $('cashout-error'),
+    cashoutBalance: $('cashout-balance'),
     toast: $('toast')
   };
 
@@ -103,18 +111,38 @@
   // The Worker hosts both the SPA and the API on the same origin, so the
   // endpoint is a relative path and a normal application/json POST works
   // without a CORS preflight detour.
+  // Sentinel error: the access token is missing or no longer accepted by the
+  // Worker. bootstrap() catches it and renders the locked screen instead of a
+  // generic toast, so the user knows to reopen their invitation URL.
+  class UnauthorizedError extends Error {
+    constructor() { super('unauthorized'); this.name = 'UnauthorizedError'; }
+  }
+
   async function api(action, payload = {}) {
+    const token = store.getAccessToken();
+    if (!token) throw new UnauthorizedError();
+
     const body = { action, ...payload };
     if (state.user && body.user == null) body.user = state.user;
     let res;
     try {
       res = await fetch(CONFIG.API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token
+        },
         body: JSON.stringify(body)
       });
     } catch (_err) {
       throw new Error(tr('errors.network'));
+    }
+    if (res.status === 401) {
+      // Token rejected by the Worker (e.g. ACCESS_TOKEN was rotated). Drop the
+      // stored copy so the next visit shows the locked screen instead of
+      // looping with a stale token.
+      store.clearAccessToken();
+      throw new UnauthorizedError();
     }
     // The server returns {ok:false, error} as JSON even on 4xx/5xx, so we let
     // the body win. Falling back to errors.network only when the body is not
@@ -162,7 +190,7 @@
 
   // ---------- Render ----------
   function render() {
-    els.parentPanel.classList.toggle('hidden', !state.parentMode);
+    els.cashoutBtn.classList.toggle('hidden', !state.parentMode);
     els.parentBtn.classList.toggle('active', state.parentMode);
     if (state.user) {
       els.userLabel.textContent = labelOf(state.user);
@@ -173,16 +201,51 @@
     renderBalance();
     renderTasks();
     renderHistory();
+    renderTabs();
+  }
+
+  // Reflect state.activeTab into the DOM: highlight the active tab, show the
+  // matching panel, and surface the count of APPLIED tasks (申請中) as a badge
+  // on the tasks tab so the parent notices pending approvals even from the
+  // history tab.
+  function renderTabs() {
+    const tab = state.activeTab;
+    els.tabTasks.classList.toggle('is-active', tab === 'tasks');
+    els.tabHistory.classList.toggle('is-active', tab === 'history');
+    els.tabTasks.setAttribute('aria-selected', tab === 'tasks');
+    els.tabHistory.setAttribute('aria-selected', tab === 'history');
+    els.panelTasks.classList.toggle('hidden', tab !== 'tasks');
+    els.panelHistory.classList.toggle('hidden', tab !== 'history');
+
+    // Badge surfaces "items needing your action":
+    //   - parent mode: APPLIED tasks (申請中) waiting for approve/reject
+    //   - kid mode:    REJECTED tasks (差し戻し) waiting for resubmit
+    // Either way, the badge means "you have something to do here".
+    const targetStatus = state.parentMode ? STATUS.APPLIED : STATUS.REJECTED;
+    const actionCount = state.tasks.filter((t) => t.status === targetStatus).length;
+    if (actionCount > 0) {
+      els.tabTasksBadge.textContent = String(actionCount);
+      els.tabTasksBadge.classList.remove('hidden');
+    } else {
+      els.tabTasksBadge.classList.add('hidden');
+    }
+  }
+
+  function switchTab(tab) {
+    if (tab !== 'tasks' && tab !== 'history') return;
+    if (state.activeTab === tab) return;
+    state.activeTab = tab;
+    renderTabs();
   }
 
   function renderBalance() {
     const total = state.history.reduce((sum, h) => sum + (Number(h.points) || 0), 0);
     els.balance.textContent = total.toLocaleString();
-    const name = state.user ? labelOf(state.user) : '';
-    els.balanceMeta.textContent = state.loading
-      ? tr('balance.updating')
-      : (name ? tr('balance.metaWithName', { name, count: state.history.length })
-              : tr('balance.meta',         { count: state.history.length }));
+    // The meta line is kept lean: only shows "更新中…" while a fetch is in
+    // flight, empty otherwise. The balance number above already conveys
+    // identity + freshness implicitly.
+    els.balanceMeta.textContent = state.loading ? tr('balance.updating') : '';
+    els.balanceMeta.classList.toggle('hidden', !state.loading);
   }
 
   function renderTasks() {
@@ -361,6 +424,25 @@
 
   // ---------- Bootstrap ----------
   async function bootstrap() {
+    // Step 1: capture ?k=<token> if present and strip it from the URL before
+    // anything else runs. The token then persists in localStorage so the
+    // address bar stays clean (no leakage via screenshots, history, share).
+    const params = new URLSearchParams(location.search);
+    const tokenParam = params.get(CONFIG.TOKEN_PARAM);
+    if (tokenParam) {
+      store.setAccessToken(tokenParam);
+      params.delete(CONFIG.TOKEN_PARAM);
+      const cleaned = location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash;
+      history.replaceState(null, '', cleaned);
+    }
+
+    // Step 2: without a stored token there is nothing meaningful to render
+    // (every /api call would 401). Show the locked screen and stop.
+    if (!store.getAccessToken()) {
+      renderLocked();
+      return;
+    }
+
     // Tentative active user from localStorage; refreshServerConfig may override.
     const stored = store.getUser();
     if (stored) state.user = stored;
@@ -371,6 +453,10 @@
     try {
       await refreshServerConfig();
     } catch (err) {
+      if (err instanceof UnauthorizedError) {
+        renderLocked();
+        return;
+      }
       toast(err.message, 'error');
     }
 
@@ -382,7 +468,6 @@
 
     // Honor LINE deep-link ?user=<key> AFTER the server roster is known so we
     // never persist a key the server doesn't recognise.
-    const params = new URLSearchParams(location.search);
     const linkUser = params.get('user');
     if (linkUser && userKeys().includes(linkUser) && linkUser !== state.user) {
       state.user = linkUser;
@@ -415,6 +500,30 @@
     }
   }
 
+  // Show a "locked" view when the SPA has no usable access token. Hides the
+  // app body and renders an explanatory message in #app-locked. Family members
+  // recover by reopening the invitation URL (?k=<token>).
+  function renderLocked() {
+    const main = document.querySelector('.app-main');
+    const header = document.querySelector('.app-header');
+    if (header) header.classList.add('hidden');
+    if (main) main.classList.add('hidden');
+    let panel = document.getElementById('app-locked');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 'app-locked';
+      panel.className = 'locked-panel';
+      panel.innerHTML =
+        '<svg class="locked-mascot" width="80" height="80" aria-hidden="true"><use href="#lesser-panda"/></svg>' +
+        '<h2 class="locked-title"></h2>' +
+        '<p class="locked-desc"></p>';
+      document.body.appendChild(panel);
+    }
+    panel.querySelector('.locked-title').textContent = tr('locked.title');
+    panel.querySelector('.locked-desc').textContent = tr('locked.desc');
+    panel.classList.remove('hidden');
+  }
+
   async function loadData(force = false) {
     if (!state.booted || !state.user) return;
     const now = Date.now();
@@ -432,6 +541,10 @@
       state.history = data.history || [];
       dataCache = { ts: now, tasks: state.tasks, history: state.history };
     } catch (err) {
+      if (err instanceof UnauthorizedError) {
+        renderLocked();
+        return;
+      }
       toast(err.message, 'error');
     } finally {
       state.loading = false;
@@ -564,7 +677,12 @@
   }
 
   function openCashoutModal() {
-    els.cashoutAmount.value = '';
+    const total = state.history.reduce((s, h) => s + (Number(h.points) || 0), 0);
+    // Pre-fill with the full balance (typical case = drain to allowance).
+    // Parent edits down with the spinner or keypad. Deliberately no select()
+    // so the value is not highlighted — that surprised the user previously.
+    els.cashoutAmount.value = total > 0 ? String(total) : '';
+    els.cashoutBalance.textContent = tr('cashout.balance', { total: total.toLocaleString() });
     els.cashoutError.classList.add('hidden');
     els.cashoutModal.classList.remove('hidden');
     setTimeout(() => els.cashoutAmount.focus(), 50);
@@ -677,17 +795,13 @@
       if (e.key === 'Enter') submitParentLogin();
     });
     els.parentCancel.addEventListener('click', () => els.parentModal.classList.add('hidden'));
-    els.parentLogout.addEventListener('click', () => {
-      state.parentMode = false;
-      state.parentPassword = null;
-      render();
-      toast(tr('parent.modeOff'));
-    });
 
     els.cashoutBtn.addEventListener('click', openCashoutModal);
     els.cashoutSubmit.addEventListener('click', submitCashout);
     els.cashoutCancel.addEventListener('click', () => els.cashoutModal.classList.add('hidden'));
 
+    els.tabTasks.addEventListener('click', () => switchTab('tasks'));
+    els.tabHistory.addEventListener('click', () => switchTab('history'));
     els.refreshBtn.addEventListener('click', () => loadData(true));
 
     els.userLabel.addEventListener('click', (e) => {

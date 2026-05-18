@@ -21,6 +21,10 @@ export async function notify(
 	if (origin) {
 		// `?parent=1` opens the parent login dialog automatically.
 		// `?user=<key>` switches the device to that child before login.
+		// We intentionally do NOT include the access token here: LINE history
+		// is durable and easily forwarded, so the token would leak with every
+		// notification. Family members open the link from a device that was
+		// previously invited via the one-shot ?k=<token> URL.
 		const url = `${origin}/?parent=1&user=${encodeURIComponent(targetUser)}`;
 		message += `\n\n${MSG.notifyOpenInParentMode}\n${url}`;
 	}

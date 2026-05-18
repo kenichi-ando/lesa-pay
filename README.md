@@ -83,12 +83,23 @@ npm install
 npx wrangler secret put GOOGLE_CLIENT_EMAIL   # Service Account の client_email
 npx wrangler secret put GOOGLE_PRIVATE_KEY    # Service Account JSON の private_key (-----BEGIN/END PRIVATE KEY----- 含む)
 npx wrangler secret put SHEET_ID              # 対象スプレッドシートID
+npx wrangler secret put ACCESS_TOKEN          # 招待トークン (例: `openssl rand -hex 16` の32文字hex)
 
 # デプロイ
 npm run deploy
 ```
 
-デプロイ後の URL (例: `https://lesapay.<account>.workers.dev/`) をブラウザで開けばすぐ動きます。`USERS` で登録した子の一覧が自動でヘッダーに反映されます。
+`ACCESS_TOKEN` はリンクを知っている人だけがアプリを使えるようにする「合言葉」です。`/api` への全リクエストはこのトークンで認証されます。生成例:
+
+```bash
+openssl rand -hex 16   # 出力をそのまま `wrangler secret put ACCESS_TOKEN` に貼る
+```
+
+デプロイ後、家族には次の **招待URL** を1度だけ送ります (例: `https://lesapay.<account>.workers.dev/?k=<token>`)。ブラウザで開くとアプリがトークンを `localStorage` に保存し、URLから `?k=` を自動的に取り除きます。以降は `https://lesapay.<account>.workers.dev/` をブックマークしておけばOK。
+
+トークンを変更したい (家族以外に漏れた疑いがあるなど) ときは、`wrangler secret put ACCESS_TOKEN` で新しい値を入れて再デプロイ → 古いリンクは自動的に無効になり、家族に新しい招待URLを配り直します。
+
+`USERS` で登録した子の一覧は自動でヘッダーに反映されます。
 
 ヘッダーの **ユーザ名チップ** をタップすると登録済みの子の一覧がドロップダウンで開き、ワンタッチで切り替えられます。
 
@@ -117,10 +128,12 @@ npm run deploy
 
 ## セキュリティ
 
+- **`ACCESS_TOKEN` ガード**: `/api` への全リクエストで `Authorization: Bearer <token>` が必須。トークンを知らない人は Worker URL を直接開いても、アプリ画面のかわりに「アクセスできません」だけが表示され、子供の名前・履歴・課題は一切取得できない
+- 招待URL `?k=<token>` は1度クリックすると `localStorage` に保存され、`history.replaceState` でアドレスバーから自動的に削除される (スクショ・ブラウザ履歴経由のリーク対策)
 - 保護者パスワードは Worker 側のみで検証 (フロントは入力値を `localStorage` に持つだけ)
 - スプレッドシートの共有は **自分 + Service Account のみ**
-- リポジトリには個人情報・URLを含めない
-- Worker のシークレット (`GOOGLE_PRIVATE_KEY` 等) は `wrangler secret` で管理し、コードには含めない
+- リポジトリには個人情報・URL・トークンを含めない
+- Worker のシークレット (`GOOGLE_PRIVATE_KEY` / `ACCESS_TOKEN` 等) は `wrangler secret` で管理し、コードには含めない
 
 ## 開発者向け
 

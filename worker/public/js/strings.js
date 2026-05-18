@@ -53,7 +53,7 @@ window.LESAPAY_STRINGS = {
   },
 
   history: {
-    sectionTitle: 'あしあと(履歴)',
+    sectionTitle: 'あしあと',
     empty: '履歴がまだありません',
     loading: '読み込み中…'
   },
@@ -79,11 +79,17 @@ window.LESAPAY_STRINGS = {
     invalid: '正しい数値を入力してください',
     insufficient: '残高不足です (現在 {total} pt)',
     confirm: '{amount} pt を使います。よろしいですか?',
-    toast: '💸 {amount} pt を使いました'
+    toast: '💸 {amount} pt を使いました',
+    balance: '現在: {total} pt'
   },
 
   setup: {
     needUsers: '設定シートの USERS にユーザを記入してください'
+  },
+
+  locked: {
+    title: '🔒 アクセスできません',
+    desc: '招待リンクをもう一度開いてください。リンクは家族の中で共有してください。'
   },
 
   users: {
