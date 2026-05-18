@@ -42,9 +42,9 @@ window.LESSERPAY_STRINGS = {
     expiryLabel: '期限: {date}',
     pendingCount: '{n}件 申請中',
     rewardSubmitOnly: '提出+{submit} pt',
-    rewardCompleteOnly: '+{complete} pt',
+    rewardCompleteOnly: '完了+{complete} pt',
     rewardCompleteLabeled: '完了+{complete} pt',
-    rewardBoth: '提出+{submit} / 完了+{complete} pt'
+    rewardBoth: '提出+{submit} & 完了+{complete} pt'
   },
 
   history: {
