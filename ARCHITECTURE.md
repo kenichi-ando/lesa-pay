@@ -56,12 +56,19 @@ lesser-pay/
 ├── client/                # Served by the same Worker via assets binding
 │   ├── index.html
 │   ├── css/style.css
-│   ├── icons/*.svg
+│   ├── icons/*            # PNG (favicons/app icons) + optional SVG assets
 │   ├── manifest.webmanifest
 │   └── js/
-│       ├── config.js      # localStorage keys (no personal data)
-│       ├── strings.js     # All user-facing UI strings (i18n)
-│       └── app.js         # Application code
+│       ├── config.js                  # localStorage keys (no personal data)
+│       ├── strings.js                 # All user-facing UI strings (i18n)
+│       ├── app-i18n.js                # tr() / applyI18n()
+│       ├── app-store.js               # localStorage accessors
+│       ├── app-utils.js               # formatting / escaping helpers
+│       ├── app-render.js              # pure rendering layer
+│       ├── app-controller-data.js     # api(), bootstrap(), loadData()
+│       ├── app-controller-actions.js  # task actions / cashout / toast
+│       ├── app-controller.js          # user selection + parent-mode orchestration
+│       └── app.js                     # wiring + event listeners only
 ├── wrangler.jsonc         # Worker config (incl. ASSETS binding)
 ├── tsconfig.json
 └── package.json
@@ -280,26 +287,24 @@ columns in whatever language they prefer without affecting behaviour.
 - `util.ts` — `HttpError`, `constantTimeEqual`, b64url, date helpers,
   `isExpired` (Asia/Tokyo).
 
-### Frontend (`client/js/app.js`)
+### Frontend (`client/js/*.js`)
 
-- `STATUS` — populated from `getConfig` inside `bootstrap()` before any
-  rendering. `STRINGS` — loaded from `client/js/strings.js` at script load.
-- `tr()` / `applyI18n()` — translation helpers.
-- `store.*` — `localStorage` accessors.
-- `state` — in-memory state for the running session.
-- `api(action, payload)` — single entry point for Worker calls. Posts to
-  `/api` (relative; same origin as the SPA).
-- `render*` — pure view layer; no network or mutation.
-- `taskItemHtml(t)` — task row template; XSS-escapes via `escapeHtml`.
-- `bootstrap()` — startup. Reads localStorage, pulls the user roster via
-  `refreshServerConfig`, applies any user-switch deep-link, then loads data
-  and handles parent-mode auto-login from a LINE link.
-- `refreshServerConfig()` — pulls `STATUS` and the `USERS` roster from the
-  Worker. The roster is authoritative: the client mirrors it into
-  `state.serverUsers` and falls back to the active user being the first listed
-  key if the previously selected key is no longer in the list.
-- `labelOf(key)` — resolve a sheet-name key to the display label from
-  `state.serverUsers`. Falls back to the key itself when no roster is loaded.
+- `app.js` — bootstraps the app, wires dependencies, defines shared `state`,
+  and attaches DOM event listeners.
+- `app-i18n.js` — `tr()` and `applyI18n()` implementation.
+- `app-store.js` — browser persistence (`lesserpay_user`, `lesserpay_parent_pw`,
+  `lesserpay_access_token`).
+- `app-utils.js` — `escapeHtml`, date parsing/formatting, expired checks,
+  and minutes formatting.
+- `app-render.js` — pure render layer (`render()`, `renderTabs()`, task/history
+  templates). No network calls.
+- `app-controller-data.js` — API wrapper (`api()`), boot flow (`bootstrap()`),
+  config refresh, cache-aware `loadData()`, and locked-screen rendering.
+- `app-controller-actions.js` — mutation-side UI actions (`apply/approve/reject`,
+  `cashout`) plus `toast()`.
+- `app-controller.js` — orchestration for user selection popover, parent-login
+  modal flow, parent-mode-aware user switching, and coordination across the
+  data/actions modules.
 
 ## Adding a new action — checklist
 
@@ -423,7 +428,7 @@ When reviewing a PR, the things most likely to be wrong:
    (`TASK_COL_COUNT` should propagate; double-check any range string like
    `${tasksSheet}!A2:${TASK_LAST_COL_LETTER}` and the `shapeTasks` mapper).
 2. A new state was added but only some of the comparison sites were updated.
-   Search for `STATUS.` in both `server/` and `client/js/app.js`.
+   Search for `STATUS.` in both `server/` and `client/js/`.
 3. A new UI string was added but only added to `strings.js`, not actually
    referenced via `tr(...)` (or vice versa). Server-side, the equivalent slip
    is referencing a `MSG.x` key that doesn't exist.
