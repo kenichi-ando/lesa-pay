@@ -186,7 +186,10 @@
 
   // ---------- Render ----------
   function render() {
-    els.cashoutBtn.classList.toggle('hidden', !state.parentMode);
+    // Cashout button: parent-mode AND positive balance. A 0-pt cashout would
+    // just hit errInsufficientBalance on the server, so hide the affordance.
+    const total = state.history.reduce((sum, h) => sum + (Number(h.points) || 0), 0);
+    els.cashoutBtn.classList.toggle('hidden', !state.parentMode || total <= 0);
     els.parentBtn.classList.toggle('active', state.parentMode);
     if (state.user) {
       els.userLabel.textContent = labelOf(state.user);
