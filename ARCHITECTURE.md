@@ -152,32 +152,37 @@ Source of truth is `server/schema.ts`. Runtime config (passwords, roster,
 LINE token) lives in `wrangler secret`-managed env vars and is read by
 `server/config.ts`.
 
-### Task sheet (`課題_<user>`)
+The Worker reads sheet ranges from `A2:` down, so **row 1 (the header) is
+ignored** — label it however you want in the spreadsheet UI. The constants
+below define column ORDER and the values written into the STATUS column;
+nothing else.
+
+### Task sheet (`Tasks_<user>`)
 
 Defined by `TASK_SCHEMA`. `TASK_COL`, `TASK_COL_COUNT`, `TASK_LAST_COL_LETTER`
 are derived from it.
 
-| Index | Key                | Header | Notes |
-| ----: | ------------------ | ------ | ----- |
-| 0     | `ID`               | ID     | Auto-generated on read if blank (`T<unix>_<rand>`) |
-| 1     | `STATUS`           | 状態    | `STATUS.PENDING` / `APPLIED` / `REJECTED` / `APPROVED` |
-| 2     | `CATEGORY`         | 分類    | Used as the group heading in the UI. Empty rows fall under `tasks.otherGroup`. |
-| 3     | `TITLE`            | 項目    | Required |
-| 4     | `SUBMIT_REWARD`    | 提出報酬 | Granted on the *first* submit only |
-| 5     | `COMPLETE_REWARD`  | 完了報酬 | Granted when the parent approves |
-| 6     | `MINUTES`          | 時間    | Estimated minutes; display only |
-| 7     | `EXPIRY`           | 期限    | YYYY/MM/DD; tasks past expiry can't be applied |
+| Index | Key                | Notes |
+| ----: | ------------------ | ----- |
+| 0     | `ID`               | Auto-generated on read if blank (`T<unix>_<rand>`) |
+| 1     | `STATUS`           | `STATUS.PENDING` / `APPLIED` / `REJECTED` / `APPROVED`. Blank = `PENDING`. |
+| 2     | `CATEGORY`         | Used as the group heading in the UI. Empty rows fall under `tasks.otherGroup`. |
+| 3     | `TITLE`            | Required |
+| 4     | `SUBMIT_REWARD`    | Granted on the *first* submit only |
+| 5     | `COMPLETE_REWARD`  | Granted when the parent approves |
+| 6     | `MINUTES`          | Estimated minutes; display only |
+| 7     | `EXPIRY`           | YYYY/MM/DD; tasks past expiry can't be applied |
 
-To add a column: insert an entry into `TASK_SCHEMA`. Everything else updates
-automatically. Existing sheets need a manual header insert.
+To add a column: append a key to `TASK_SCHEMA`. Everything else updates
+automatically.
 
-### History sheet (`履歴_<user>`)
+### History sheet (`History_<user>`)
 
-| Index | Key       | Header  | Notes |
-| ----: | --------- | ------- | ----- |
-| 0     | `DATE`    | 日時    | `yyyy/MM/dd HH:mm` |
-| 1     | `CONTENT` | 内容    | Free-form, emoji-prefixed. e.g. `"✅ 英語 単語50個"`, `"📩 算数 計算ドリル"`, `"💸 ポイント消費"`. Older rows may still carry the legacy `" (提出)"` / `" (承認)"` suffix and are rendered as-is. |
-| 2     | `POINTS`  | ポイント | Positive (reward) or negative (cashout) |
+| Index | Key       | Notes |
+| ----: | --------- | ----- |
+| 0     | `DATE`    | `yyyy/MM/dd HH:mm` |
+| 1     | `CONTENT` | Free-form, emoji-prefixed. e.g. `"✅ 英語 単語50個"`, `"📩 算数 計算ドリル"`, `"💸 ポイント消費"`. Older rows may still carry the legacy `" (提出)"` / `" (承認)"` suffix and are rendered as-is. |
+| 2     | `POINTS`  | Positive (reward) or negative (cashout) |
 
 ### Runtime config (wrangler secrets)
 
@@ -211,12 +216,13 @@ trustworthy on Cloudflare.
 ### Status values
 
 ```ts
-STATUS = { PENDING: '未完了', APPLIED: '申請中', REJECTED: '差し戻し', APPROVED: '承認済み' }
+STATUS = { PENDING: 'Pending', APPLIED: 'Applied', REJECTED: 'Rejected', APPROVED: 'Approved' }
 ```
 
-Authoritative copy is in `server/schema.ts`. The frontend has a fallback
-copy in `app.js` and overwrites it at startup via the `getConfig` action so
-renaming a status in one place propagates after deploy.
+Authoritative copy is in `server/schema.ts`. The frontend `STATUS` is empty
+at module load and gets populated from the `getConfig` response inside
+`bootstrap()`, before any rendering runs — so renaming a status on the server
+propagates after deploy without a matching client change.
 
 State transitions:
 
@@ -248,8 +254,10 @@ Server-side, `fmt(MSG.someKey, { vars })` does the same `{name}` interpolation.
 To support a second language: keep `strings.js` as a default and add e.g.
 `strings.en.js`; pick one based on `localStorage` or `navigator.language`.
 
-Sheet column headers and status values are intentionally left in Japanese in
-the schema, because the spreadsheet is the parent-facing source of truth.
+System-internal identifiers (sheet name prefixes, STATUS values, schema keys)
+are English; user-visible copy lives in `strings.js` / `messages.ts`. The
+spreadsheet's row 1 (header) is ignored by the Worker, so families can label
+columns in whatever language they prefer without affecting behaviour.
 
 ## Code map
 
@@ -274,7 +282,8 @@ the schema, because the spreadsheet is the parent-facing source of truth.
 
 ### Frontend (`client/js/app.js`)
 
-- `STATUS` / `STRINGS` — bootstrapped fallbacks. Real values come from server.
+- `STATUS` — populated from `getConfig` inside `bootstrap()` before any
+  rendering. `STRINGS` — loaded from `client/js/strings.js` at script load.
 - `tr()` / `applyI18n()` — translation helpers.
 - `store.*` — `localStorage` accessors.
 - `state` — in-memory state for the running session.

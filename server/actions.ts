@@ -103,7 +103,7 @@ async function handleApplyTask(env: Env, user: string, taskId: string, origin: s
 	const { row, rowIndex } = await findTaskRow(env, token, tasksSheet, taskId);
 
 	const currentStatus = (String(row[TASK_COL.STATUS] ?? "") || STATUS.PENDING) as string;
-	if (currentStatus === STATUS.APPLIED) throw new HttpError(409, MSG.errAlreadyApplied);
+	if (currentStatus === STATUS.SUBMITTED) throw new HttpError(409, MSG.errAlreadyApplied);
 	if (currentStatus === STATUS.APPROVED) throw new HttpError(409, MSG.errAlreadyApproved);
 
 	const expiry = row[TASK_COL.EXPIRY];
@@ -115,7 +115,7 @@ async function handleApplyTask(env: Env, user: string, taskId: string, origin: s
 	const title = String(row[TASK_COL.TITLE] ?? "");
 	const taskLabel = composeTaskLabel(category, title);
 
-	// Submit reward fires only on the first transition (PENDING → APPLIED).
+	// Submit reward fires only on the first transition (PENDING → SUBMITTED).
 	// Resubmitting from REJECTED skips the submit reward.
 	const isFirstSubmit = currentStatus !== STATUS.REJECTED;
 
@@ -127,7 +127,7 @@ async function handleApplyTask(env: Env, user: string, taskId: string, origin: s
 		]);
 	}
 
-	await casTaskStatus(env, token, tasksSheet, rowIndex, currentStatus, STATUS.APPLIED);
+	await casTaskStatus(env, token, tasksSheet, rowIndex, currentStatus, STATUS.SUBMITTED);
 
 	// LINE notification — best effort; never break the user flow.
 	const cfg = fetchConfig(env);
@@ -179,7 +179,7 @@ async function handleApproveTask(env: Env, user: string, taskId: string, passwor
 
 	const currentStatus = (String(row[TASK_COL.STATUS] ?? "") || STATUS.PENDING) as string;
 	if (currentStatus === STATUS.APPROVED) throw new HttpError(409, MSG.errAlreadyApproved);
-	if (currentStatus !== STATUS.APPLIED) {
+	if (currentStatus !== STATUS.SUBMITTED) {
 		throw new HttpError(409, fmt(MSG.errNotAppliedTask, { status: currentStatus }));
 	}
 
@@ -189,7 +189,7 @@ async function handleApproveTask(env: Env, user: string, taskId: string, passwor
 	const content = HISTORY_LABEL.APPROVE_PREFIX + composeTaskLabel(category, title);
 
 	// Append history first, then flip status. A partial failure that stops
-	// after the history append leaves the task still APPLIED (visible to the
+	// after the history append leaves the task still SUBMITTED (visible to the
 	// parent), which is recoverable. The reverse order would risk "approved
 	// without payout" — much harder to spot.
 	await appendHistoryRow(env, token, historySheet, [

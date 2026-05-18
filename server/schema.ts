@@ -1,50 +1,52 @@
 /**
- * Spreadsheet schema constants. The values here are written into the user's
- * spreadsheet, so they must stay in sync with gas/Code.gs and the actual
- * sheet contents.
+ * Spreadsheet schema constants.
+ *
+ * The Worker reads sheet ranges from row 2 down (`A2:…`), so the header row
+ * is purely cosmetic — it isn't validated, and you can label it however you
+ * like in the spreadsheet UI. We only need column ORDER to match this file.
  */
 
-// Sheet naming
+// Sheet naming. Spreadsheet tab names are case-sensitive, so the casing here
+// must match the actual tab names exactly (e.g. "Tasks_Light", "History_Light").
 export const SHEET_PREFIX = {
-	TASKS: "課題_",
-	HISTORY: "履歴_",
+	TASKS: "Tasks_",
+	HISTORY: "History_",
 } as const;
 
-// Task statuses written into the STATUS column.
+// Task statuses written into the STATUS column. Anything else (including
+// blank) is treated as PENDING.
 export const STATUS = {
-	PENDING: "未完了",
-	APPLIED: "申請中",
-	REJECTED: "差し戻し",
-	APPROVED: "承認済み",
+	PENDING: "Pending",
+	SUBMITTED: "Submitted",
+	REJECTED: "Rejected",
+	APPROVED: "Approved",
 } as const;
 
-// Task sheet schema. Order = column index.
+// Task sheet schema. Order = column index. The strings here are TypeScript
+// keys (used as `TASK_COL.STATUS` etc.); they have nothing to do with what
+// the spreadsheet header row says.
 export const TASK_SCHEMA = [
-	{ key: "ID", header: "ID" },
-	{ key: "STATUS", header: "状態" },
-	{ key: "CATEGORY", header: "分類" },
-	{ key: "TITLE", header: "項目" },
-	{ key: "SUBMIT_REWARD", header: "提出報酬" },
-	{ key: "COMPLETE_REWARD", header: "完了報酬" },
-	{ key: "MINUTES", header: "時間" },
-	{ key: "EXPIRY", header: "期限" },
+	"ID",
+	"STATUS",
+	"CATEGORY",
+	"TITLE",
+	"SUBMIT_REWARD",
+	"COMPLETE_REWARD",
+	"MINUTES",
+	"EXPIRY",
 ] as const;
-export const TASK_COL = Object.fromEntries(TASK_SCHEMA.map((c, i) => [c.key, i])) as Record<
-	(typeof TASK_SCHEMA)[number]["key"],
+export const TASK_COL = Object.fromEntries(TASK_SCHEMA.map((k, i) => [k, i])) as Record<
+	(typeof TASK_SCHEMA)[number],
 	number
 >;
 export const TASK_COL_COUNT = TASK_SCHEMA.length;
 export const TASK_LAST_COL_LETTER = colLetter(TASK_COL_COUNT);
 
 // History sheet schema.
-export const HISTORY_SCHEMA = [
-	{ key: "DATE", header: "日時" },
-	{ key: "CONTENT", header: "内容" },
-	{ key: "POINTS", header: "ポイント" },
-] as const;
+export const HISTORY_SCHEMA = ["DATE", "CONTENT", "POINTS"] as const;
 export const HISTORY_COL = Object.fromEntries(
-	HISTORY_SCHEMA.map((c, i) => [c.key, i]),
-) as Record<(typeof HISTORY_SCHEMA)[number]["key"], number>;
+	HISTORY_SCHEMA.map((k, i) => [k, i]),
+) as Record<(typeof HISTORY_SCHEMA)[number], number>;
 export const HISTORY_COL_COUNT = HISTORY_SCHEMA.length;
 export const HISTORY_LAST_COL_LETTER = colLetter(HISTORY_COL_COUNT);
 

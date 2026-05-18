@@ -5,15 +5,11 @@
   const SK      = CONFIG.STORAGE_KEYS;
   const STRINGS = window.LESAPAY_STRINGS || {};
 
-  // Task status values. Authoritative source is the server (worker/src/schema.ts);
-  // we fetch it via the getConfig action at startup to keep the two in sync.
-  // The values below are only fallbacks used until getConfig responds.
-  let STATUS = {
-    PENDING:  '未完了',
-    APPLIED:  '申請中',
-    REJECTED: '差し戻し',
-    APPROVED: '承認済み'
-  };
+  // Task status values. Authoritative source is the server (server/schema.ts);
+  // bootstrap() awaits refreshServerConfig() before any rendering runs, so by
+  // the time STATUS is consulted it has been overwritten with the server's
+  // copy. Initialised empty here purely so the variable exists.
+  let STATUS = /** @type {Record<string,string>} */ ({});
 
   // Translate "foo.bar" → STRINGS.foo.bar. With `vars` it interpolates `{name}`.
   function tr(key, vars) {
@@ -205,7 +201,7 @@
   }
 
   // Reflect state.activeTab into the DOM: highlight the active tab, show the
-  // matching panel, and surface the count of APPLIED tasks (申請中) as a badge
+  // matching panel, and surface the count of SUBMITTED tasks (申請中) as a badge
   // on the tasks tab so the parent notices pending approvals even from the
   // history tab.
   function renderTabs() {
@@ -218,10 +214,10 @@
     els.panelHistory.classList.toggle('hidden', tab !== 'history');
 
     // Badge surfaces "items needing your action":
-    //   - parent mode: APPLIED tasks (申請中) waiting for approve/reject
+    //   - parent mode: SUBMITTED tasks (申請中) waiting for approve/reject
     //   - kid mode:    REJECTED tasks (差し戻し) waiting for resubmit
     // Either way, the badge means "you have something to do here".
-    const targetStatus = state.parentMode ? STATUS.APPLIED : STATUS.REJECTED;
+    const targetStatus = state.parentMode ? STATUS.SUBMITTED : STATUS.REJECTED;
     const actionCount = state.tasks.filter((t) => t.status === targetStatus).length;
     if (actionCount > 0) {
       els.tabTasksBadge.textContent = String(actionCount);
@@ -271,10 +267,10 @@
 
     els.tasksList.innerHTML = sortedKeys.map((key) => {
       const items = groups.get(key);
-      const pendingCount = items.filter((t) => t.status === STATUS.APPLIED).length;
+      const pendingCount = items.filter((t) => t.status === STATUS.SUBMITTED).length;
       const pendingBadge = pendingCount > 0 ? `<span class="task-group-badge">${escapeHtml(tr('tasks.pendingCount', { n: pendingCount }))}</span>` : '';
       const totalMinutes = items
-        .filter((t) => t.status !== STATUS.APPROVED && t.status !== STATUS.APPLIED)
+        .filter((t) => t.status !== STATUS.APPROVED && t.status !== STATUS.SUBMITTED)
         .reduce((sum, t) => sum + (Number(t.minutes) || 0), 0);
       const timeBadge = totalMinutes > 0
         ? `<span class="task-group-time">⏱ ${escapeHtml(formatMinutes(totalMinutes))}</span>`
@@ -295,7 +291,7 @@
 
   function taskItemHtml(t) {
     const statusClass =
-      t.status === STATUS.APPLIED   ? 'status-applied' :
+      t.status === STATUS.SUBMITTED   ? 'status-applied' :
       t.status === STATUS.APPROVED ? 'status-approved' :
       t.status === STATUS.REJECTED ? 'status-rejected' : 'status-pending';
 
@@ -303,7 +299,7 @@
     const expiryLabel = t.expiry ? tr('tasks.expiryLabel', { date: formatDate(t.expiry) }) + (expired ? ' ⚠️' : '') : '';
 
     let actionHtml = '';
-    if (state.parentMode && t.status === STATUS.APPLIED) {
+    if (state.parentMode && t.status === STATUS.SUBMITTED) {
       actionHtml = `
         <div class="task-action-group">
           <button class="task-btn approve-btn" data-task-id="${escapeHtml(t.id)}" data-action="approve">${escapeHtml(tr('tasks.approve'))}</button>
@@ -314,7 +310,7 @@
       actionHtml = `<button class="task-btn" data-task-id="${escapeHtml(t.id)}" data-action="apply" ${expired ? 'disabled' : ''}>${escapeHtml(tr('tasks.apply'))}</button>`;
     } else if (t.status === STATUS.REJECTED) {
       actionHtml = `<button class="task-btn resubmit-btn" data-task-id="${escapeHtml(t.id)}" data-action="apply" ${expired ? 'disabled' : ''}>${escapeHtml(tr('tasks.resubmit'))}</button>`;
-    } else if (t.status === STATUS.APPLIED) {
+    } else if (t.status === STATUS.SUBMITTED) {
       actionHtml = `<span class="task-status-badge">${escapeHtml(tr('tasks.appliedBadge'))}</span>`;
     } else if (t.status === STATUS.APPROVED) {
       actionHtml = `<span class="task-status-badge">${escapeHtml(tr('tasks.approvedBadge'))}</span>`;
