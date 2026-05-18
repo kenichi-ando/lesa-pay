@@ -56,6 +56,10 @@
     serverUsers: [],       // [{key, label}] from the server (USERS secret)
     parentMode: false,
     parentPassword: null,
+    needsUserSelection: false,
+    userSelectionClosable: false,
+    selectionReturnState: null,
+    pendingParentSwitchToast: false,
     tasks: [],
     history: [],
     loading: false,
@@ -74,10 +78,12 @@
   // ---------- DOM refs ----------
   const $ = (id) => document.getElementById(id);
   const els = {
-    parentBtn: $('parent-mode-btn'),
     userLabel: $('user-label'),
     userPopover: $('user-popover'),
     userPopoverList: $('user-popover-list'),
+    userSelectScreen: $('user-select-screen'),
+    userSelectList: $('user-select-list'),
+    userSelectCloseBtn: $('user-select-close-btn'),
     cashoutBtn: $('cashout-btn'),
     refreshBtn: $('refresh-btn'),
     tabTasks: $('tab-tasks'),
@@ -190,11 +196,13 @@
     // just hit errInsufficientBalance on the server, so hide the affordance.
     const total = state.history.reduce((sum, h) => sum + (Number(h.points) || 0), 0);
     els.cashoutBtn.classList.toggle('hidden', !state.parentMode || total <= 0);
-    els.parentBtn.classList.toggle('active', state.parentMode);
-    if (state.user) {
-      els.userLabel.textContent = labelOf(state.user);
+    if (state.user && !state.needsUserSelection) {
+      const key = state.parentMode ? 'header.currentParent' : 'header.currentKid';
+      els.userLabel.textContent = tr(key, { name: labelOf(state.user) });
+      els.userLabel.classList.add('is-switchable');
       els.userLabel.classList.remove('hidden');
     } else {
+      els.userLabel.classList.remove('is-switchable');
       els.userLabel.classList.add('hidden');
     }
     renderBalance();
@@ -363,26 +371,50 @@
 
   // ---------- User popover ----------
   function renderUserPopover() {
-    const list = state.serverUsers;
-    if (list.length === 0) {
+    if (state.serverUsers.length === 0) {
       // USERS secret is empty — surface it to the operator.
       els.userPopoverList.innerHTML = `<li class="user-popover-empty">${escapeHtml(tr('setup.needUsers'))}</li>`;
       return;
     }
-    els.userPopoverList.innerHTML = list.map(({ key, label }) => {
-      const isCurrent = key === state.user;
-      return `
-        <li class="user-popover-item ${isCurrent ? 'is-current' : ''}">
-          <button class="user-popover-pick" type="button" data-user="${escapeHtml(key)}">
-            <span class="user-popover-mark">${isCurrent ? '✓' : ''}</span>
-            <span class="user-popover-name">${escapeHtml(label)}</span>
-          </button>
-        </li>
-      `;
-    }).join('');
+
+    const childItems = state.parentMode
+      ? state.serverUsers.map(({ key, label }) => {
+        const isCurrent = key === state.user;
+        return `
+          <li class="user-popover-item ${isCurrent ? 'is-current' : ''}">
+            <button class="user-popover-pick" type="button" data-user="${escapeHtml(key)}">
+              <span class="user-popover-mark">${isCurrent ? '✓' : ''}</span>
+              <span class="user-popover-name">${escapeHtml(label)}</span>
+            </button>
+          </li>
+        `;
+      }).join('')
+      : '';
+
+    const header = state.parentMode
+      ? `<li class="user-popover-group-title">${escapeHtml(tr('users.childSwitchTitle'))}</li>`
+      : '';
+    const divider = state.parentMode ? '<li class="user-popover-divider" aria-hidden="true"></li>' : '';
+
+    els.userPopoverList.innerHTML = `
+      ${header}
+      ${childItems}
+      ${divider}
+      <li class="user-popover-item">
+        <button class="user-popover-pick user-popover-login-switch" type="button" data-action="switch-login-user">
+          <span class="user-popover-name">${escapeHtml(tr('users.loginSwitch'))}</span>
+        </button>
+      </li>
+    `;
+
     els.userPopoverList.querySelectorAll('[data-user]').forEach((btn) => {
-      btn.addEventListener('click', () => switchUser(btn.dataset.user));
+      btn.addEventListener('click', () => switchUser(btn.dataset.user, {
+        keepParentMode: true,
+        toastKey: 'users.switchedDisplayToast'
+      }));
     });
+    const loginSwitchBtn = els.userPopoverList.querySelector('[data-action="switch-login-user"]');
+    if (loginSwitchBtn) loginSwitchBtn.addEventListener('click', openLoginUserSelection);
   }
 
   function openUserPopover() {
@@ -395,25 +427,121 @@
   }
 
   function toggleUserPopover() {
+    if (state.needsUserSelection || !state.user) return;
     if (els.userPopover.classList.contains('hidden')) openUserPopover();
     else closeUserPopover();
   }
 
-  async function switchUser(key) {
+  function openLoginUserSelection() {
+    closeUserPopover();
+    const canClose = !!state.user;
+    showUserSelection({
+      closable: canClose,
+      keepSession: canClose,
+      returnState: canClose ? {
+        user: state.user,
+        parentMode: state.parentMode,
+        parentPassword: state.parentPassword
+      } : null
+    });
+  }
+
+  function showUserSelection(options) {
+    const opts = options || {};
+    state.needsUserSelection = true;
+    state.userSelectionClosable = !!opts.closable;
+    state.selectionReturnState = opts.returnState || null;
+    closeUserPopover();
+    if (!opts.keepSession) {
+      state.parentMode = false;
+      state.parentPassword = null;
+    }
+    els.userSelectList.innerHTML = state.serverUsers.map(({ key, label }) => `
+      <button class="user-select-btn" type="button" data-user-select="${escapeHtml(key)}">
+        <span>${escapeHtml(label)}</span>
+      </button>
+    `).join('') + `
+      <button class="user-select-btn is-parent" type="button" data-user-select="__parent__">
+        <span class="user-select-key" aria-hidden="true">🔑</span>
+        <span>${escapeHtml(tr('userSelect.parent'))}</span>
+      </button>
+    `;
+    els.userSelectList.querySelectorAll('[data-user-select]').forEach((btn) => {
+      btn.addEventListener('click', () => onUserSelect(btn.dataset.userSelect));
+    });
+    els.userSelectCloseBtn.classList.toggle('hidden', !state.userSelectionClosable);
+    els.userSelectScreen.classList.remove('hidden');
+    render();
+  }
+
+  function hideUserSelection() {
+    state.needsUserSelection = false;
+    state.userSelectionClosable = false;
+    state.selectionReturnState = null;
+    els.userSelectScreen.classList.add('hidden');
+    render();
+  }
+
+  function closeUserSelectionWithoutChanges() {
+    if (!state.userSelectionClosable) return;
+    if (state.selectionReturnState) {
+      state.user = state.selectionReturnState.user;
+      state.parentMode = state.selectionReturnState.parentMode;
+      state.parentPassword = state.selectionReturnState.parentPassword;
+      store.setUser(state.user);
+    }
+    hideUserSelection();
+  }
+
+  async function onUserSelect(selection) {
+    const shouldToast = state.userSelectionClosable;
+    if (selection === '__parent__') {
+      state.pendingParentSwitchToast = shouldToast;
+      if (!state.user && state.serverUsers.length > 0) {
+        state.user = state.serverUsers[0].key;
+        store.setUser(state.user);
+      }
+      const autoLoggedIn = await tryAutoLoginParent();
+      if (autoLoggedIn) {
+        hideUserSelection();
+        if (shouldToast) {
+          toast(tr('users.switchedParentToast'), 'success');
+        }
+        state.pendingParentSwitchToast = false;
+        return;
+      }
+      openParentModal();
+      return;
+    }
+    await switchUser(selection, {
+      silent: !shouldToast,
+      toastKey: 'users.switchedLoginToast'
+    });
+    hideUserSelection();
+  }
+
+  async function switchUser(key, options) {
+    const opts = options || {};
     if (!key || key === state.user) {
       closeUserPopover();
       return;
     }
     closeUserPopover();
+    const keepParentMode = !!opts.keepParentMode && state.parentMode && !!state.parentPassword;
     state.user = key;
     store.setUser(key);
-    state.parentMode = false;
-    state.parentPassword = null;
+    if (!keepParentMode) {
+      state.parentMode = false;
+      state.parentPassword = null;
+    }
     dataCache = null;
     state.tasks = [];
     state.history = [];
     render();
-    toast(tr('users.switchedToast', { name: labelOf(key) }), 'success');
+    if (!opts.silent) {
+      const toastKey = opts.toastKey || 'users.switchedToast';
+      toast(tr(toastKey, { name: labelOf(key) }), 'success');
+    }
     await loadData(true);
   }
 
@@ -473,6 +601,13 @@
       dataCache = null;
       state.tasks = [];
       state.history = [];
+    }
+
+    const hasStoredUser = !!store.getUser() && userKeys().includes(store.getUser());
+    if (!hasStoredUser && !linkUser) {
+      state.booted = true;
+      showUserSelection({ closable: false, keepSession: false });
+      return;
     }
 
     state.booted = true;
@@ -602,22 +737,10 @@
   }
 
   function openParentModal() {
-    if (state.parentMode) {
-      state.parentMode = false;
-      state.parentPassword = null;
-      render();
-      toast(tr('parent.modeOff'));
-      return;
-    }
-    // Reuse the saved parent password if it still works; only fall back to the
-    // login modal when there is no stored password or it is no longer valid.
-    tryAutoLoginParent().then((ok) => {
-      if (ok) return;
-      els.parentPassword.value = '';
-      els.parentError.classList.add('hidden');
-      els.parentModal.classList.remove('hidden');
-      setTimeout(() => els.parentPassword.focus(), 50);
-    });
+    els.parentPassword.value = '';
+    els.parentError.classList.add('hidden');
+    els.parentModal.classList.remove('hidden');
+    setTimeout(() => els.parentPassword.focus(), 50);
   }
 
   // Attempt to enter parent mode using the password persisted in localStorage.
@@ -632,7 +755,6 @@
       state.parentPassword = savedPw;
       state.parentMode = true;
       render();
-      toast(tr('parent.modeOn'), 'success');
       return true;
     } catch (_err) {
       // Stored password no longer matches (rotated by the parent) — clear it
@@ -659,16 +781,25 @@
       state.parentMode = true;
       store.setParentPw(pw);
       els.parentModal.classList.add('hidden');
+      hideUserSelection();
       render();
-      toast(tr('parent.modeOn'), 'success');
+      if (state.pendingParentSwitchToast) {
+        toast(tr('users.switchedParentToast'), 'success');
+      }
     } catch (err) {
       state.parentPassword = null;
       els.parentError.textContent = err.message;
       els.parentError.classList.remove('hidden');
     } finally {
+      state.pendingParentSwitchToast = false;
       els.parentSubmit.disabled = false;
       els.parentSubmit.textContent = original;
     }
+  }
+
+  function closeParentModal() {
+    state.pendingParentSwitchToast = false;
+    els.parentModal.classList.add('hidden');
   }
 
   function openCashoutModal() {
@@ -784,12 +915,12 @@
 
   // ---------- Wire up ----------
   function init() {
-    els.parentBtn.addEventListener('click', openParentModal);
+    els.userSelectCloseBtn.addEventListener('click', closeUserSelectionWithoutChanges);
     els.parentSubmit.addEventListener('click', submitParentLogin);
     els.parentPassword.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') submitParentLogin();
     });
-    els.parentCancel.addEventListener('click', () => els.parentModal.classList.add('hidden'));
+    els.parentCancel.addEventListener('click', closeParentModal);
 
     els.cashoutBtn.addEventListener('click', openCashoutModal);
     els.cashoutSubmit.addEventListener('click', submitCashout);
@@ -812,7 +943,9 @@
 
     [els.parentModal, els.cashoutModal].forEach((m) => {
       m.addEventListener('click', (e) => {
-        if (e.target === m) m.classList.add('hidden');
+        if (e.target !== m) return;
+        if (m === els.parentModal) closeParentModal();
+        else m.classList.add('hidden');
       });
     });
 

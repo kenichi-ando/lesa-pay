@@ -6,8 +6,9 @@
   <meta name="theme-color" content="#b6562d" />
   <meta name="description" content="家族で使うかわいい報酬管理アプリ" />
   <title>LesserPay 🐼 家庭内報酬管理</title>
-  <link rel="icon" type="image/svg+xml" href="icons/favicon.svg" />
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16x16.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -18,81 +19,30 @@
   <!-- Red panda mascot (reused via SVG symbol) -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <defs>
-      <radialGradient id="cheek-grad" cx="0.5" cy="0.5" r="0.5">
-        <stop offset="0%" stop-color="#ffb3c1" stop-opacity="0.85"/>
-        <stop offset="100%" stop-color="#ffb3c1" stop-opacity="0"/>
-      </radialGradient>
-      <radialGradient id="face-grad" cx="0.5" cy="0.4" r="0.7">
-        <stop offset="0%" stop-color="#d77b46"/>
-        <stop offset="100%" stop-color="#b6562d"/>
-      </radialGradient>
-
       <symbol id="lesser-panda" viewBox="0 0 120 120">
-        <!-- Ears: outer brown, inner peach, white tuft tip -->
-        <ellipse cx="26" cy="32" rx="13" ry="15" fill="#a44b25" transform="rotate(-10 26 32)"/>
-        <ellipse cx="94" cy="32" rx="13" ry="15" fill="#a44b25" transform="rotate(10 94 32)"/>
-        <ellipse cx="26" cy="34" rx="6.5" ry="9" fill="#ffd9c2" transform="rotate(-10 26 34)"/>
-        <ellipse cx="94" cy="34" rx="6.5" ry="9" fill="#ffd9c2" transform="rotate(10 94 34)"/>
-        <ellipse cx="22" cy="20" rx="3.5" ry="3" fill="#fff4e6"/>
-        <ellipse cx="98" cy="20" rx="3.5" ry="3" fill="#fff4e6"/>
-
-        <!-- Round face -->
-        <circle cx="60" cy="66" r="44" fill="url(#face-grad)"/>
-
-        <!-- White M-pattern between eyes (forehead patch) -->
-        <path d="M52,46 Q60,56 68,46 L60,62 Z" fill="#fff4e6" opacity="0.9"/>
-
-        <!-- White muzzle: full lower-face area -->
-        <path d="M60,58
-                 Q38,60 32,76
-                 Q30,92 44,100
-                 Q60,104 76,100
-                 Q90,92 88,76
-                 Q82,60 60,58 Z" fill="#fff4e6"/>
-
-        <!-- Side cheek tufts (extra fluff at face edges) -->
-        <ellipse cx="22" cy="74" rx="11" ry="14" fill="#fff4e6"/>
-        <ellipse cx="98" cy="74" rx="11" ry="14" fill="#fff4e6"/>
-
-        <!-- Brown tear-stripe (iconic red-panda mark): from above each eye down through cheek -->
-        <path d="M36,52 Q44,50 48,60 Q50,72 42,78 Q34,76 32,68 Q30,58 36,52 Z" fill="#7a3618"/>
-        <path d="M84,52 Q76,50 72,60 Q70,72 78,78 Q86,76 88,68 Q90,58 84,52 Z" fill="#7a3618"/>
-
-        <!-- Pink cheek blush (right under the eyes) -->
-        <ellipse cx="26" cy="82" rx="8" ry="6" fill="url(#cheek-grad)"/>
-        <ellipse cx="94" cy="82" rx="8" ry="6" fill="url(#cheek-grad)"/>
-
-        <!-- Big sparkly eyes (oval) -->
-        <ellipse cx="42" cy="66" rx="6.5" ry="8" fill="#1a0e07"/>
-        <ellipse cx="78" cy="66" rx="6.5" ry="8" fill="#1a0e07"/>
-
-        <!-- Eye highlights: 1 big + 1 small per eye -->
-        <ellipse cx="44.5" cy="63" rx="2.2" ry="2.8" fill="#fff"/>
-        <ellipse cx="80.5" cy="63" rx="2.2" ry="2.8" fill="#fff"/>
-        <circle cx="40" cy="69.5" r="1.1" fill="#fff" opacity="0.85"/>
-        <circle cx="76" cy="69.5" r="1.1" fill="#fff" opacity="0.85"/>
-
-        <!-- Heart-shaped nose -->
-        <path d="M55,80 Q53,77 56.5,77 Q60,78 60,82 Q60,78 63.5,77 Q67,77 65,80 Q63,84 60,86 Q57,84 55,80 Z" fill="#1a0e07"/>
-
-        <!-- Mouth: nose-to-mouth line + smooth smile -->
-        <path d="M60,86 L60,89" stroke="#1a0e07" stroke-width="1.4" stroke-linecap="round" fill="none"/>
-        <path d="M54,90 Q60,94 66,90" stroke="#1a0e07" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+        <image href="icons/lesser-panda-face.png" x="0" y="0" width="120" height="120" preserveAspectRatio="xMidYMid slice"/>
       </symbol>
 
     </defs>
   </svg>
 
+  <div id="user-select-screen" class="user-select-screen hidden">
+    <div class="user-select-card">
+      <button id="user-select-close-btn" class="user-select-close-btn hidden" type="button" data-i18n-attr-aria-label="userSelect.close">✕</button>
+      <svg class="user-select-mascot" width="80" height="80" aria-hidden="true"><use href="#lesser-panda"/></svg>
+      <h2 class="user-select-title" data-i18n="userSelect.title"></h2>
+      <p class="user-select-desc" data-i18n="userSelect.desc"></p>
+      <div id="user-select-list" class="user-select-list"></div>
+    </div>
+  </div>
+
   <header class="app-header">
     <h1 class="app-title">
       <svg class="app-logo" width="36" height="36"><use href="#lesser-panda"/></svg>
       <span class="app-title-text" data-i18n="app.title"></span>
-      <button id="user-label" class="user-label hidden" type="button" data-i18n-attr-aria-label="header.switchUser"></button>
     </h1>
     <div class="header-actions">
-      <button id="parent-mode-btn" class="parent-btn" data-i18n-attr-aria-label="header.parentMode">
-        <span class="parent-icon">🔑</span>
-      </button>
+      <button id="user-label" class="user-label hidden" type="button" data-i18n-attr-aria-label="header.currentUser"></button>
     </div>
 
     <div id="user-popover" class="user-popover hidden" role="menu" aria-labelledby="user-label">
@@ -103,7 +53,6 @@
 
   <main class="app-main">
     <section class="balance-card">
-      <svg class="balance-mascot" width="48" height="48" aria-hidden="true"><use href="#lesser-panda"/></svg>
       <div class="balance-label" data-i18n="balance.label"></div>
       <div class="balance-value">
         <span class="balance-number">

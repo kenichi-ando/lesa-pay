@@ -9,9 +9,17 @@ window.LESSERPAY_STRINGS = {
   app: { title: 'LesserPay' },
 
   header: {
-    parentMode: '保護者モード',
     refresh: '更新',
-    switchUser: 'ユーザを切り替える'
+    currentUser: '現在のユーザー',
+    currentKid: '{name}',
+    currentParent: '保護者（{name}）'
+  },
+
+  userSelect: {
+    title: 'だれがつかう？',
+    desc: 'つかう人をえらんでね',
+    parent: '保護者',
+    close: '選択画面を閉じる'
   },
 
   balance: {
@@ -59,9 +67,7 @@ window.LESSERPAY_STRINGS = {
     cancel: 'キャンセル',
     login: 'ログイン',
     checking: '確認中…',
-    needPassword: 'パスワードを入力してください',
-    modeOn: '🔓 保護者モード ON',
-    modeOff: '保護者モードを解除しました'
+    needPassword: 'パスワードを入力してください'
   },
 
   cashout: {
@@ -88,8 +94,12 @@ window.LESSERPAY_STRINGS = {
   },
 
   users: {
-    switcherTitle: 'ユーザを切り替え',
-    switchedToast: '{name} に切り替えました'
+    switcherTitle: 'ユーザー切り替え',
+    childSwitchTitle: '表示する子供',
+    loginSwitch: 'ログインユーザーを切り替える',
+    switchedDisplayToast: '{name} に切り替えました',
+    switchedLoginToast: '{name} でログインしました',
+    switchedParentToast: '保護者でログインしました'
   },
 
   time: {
