@@ -176,7 +176,7 @@ automatically. Existing sheets need a manual header insert.
 | Index | Key       | Header  | Notes |
 | ----: | --------- | ------- | ----- |
 | 0     | `DATE`    | 日時    | `yyyy/MM/dd HH:mm` |
-| 1     | `CONTENT` | 内容    | Free-form. e.g. `"英語 単語50個 (承認)"`, `"ポイント消費"` |
+| 1     | `CONTENT` | 内容    | Free-form, emoji-prefixed. e.g. `"✅ 英語 単語50個"`, `"📩 算数 計算ドリル"`, `"💸 ポイント消費"`. Older rows may still carry the legacy `" (提出)"` / `" (承認)"` suffix and are rendered as-is. |
 | 2     | `POINTS`  | ポイント | Positive (reward) or negative (cashout) |
 
 ### Runtime config (wrangler secrets)
@@ -302,10 +302,15 @@ the schema, because the spreadsheet is the parent-facing source of truth.
        handleNewAction(env, req.user as string, req.foo),
    },
    ```
+   The dispatcher in `index.ts` runs the `ACCESS_TOKEN` check before any
+   handler, so every new action is automatically gated — no per-action work
+   needed for that. Parent-only actions additionally call `checkPassword(env,
+   req.password)` inside the handler (see `approveTask` / `cashout`).
 2. **Worker** — implement `handleNewAction(env, user, foo)`. Use
    `casTaskStatus` for any task-row state transition; throw `HttpError` on
    bad input — `index.ts` packages errors as `{ ok: false, error: '...' }`.
-3. **Frontend** — call `await api('newAction', { foo })`.
+3. **Frontend** — call `await api('newAction', { foo })`. The client's `api()`
+   wrapper attaches the `Authorization: Bearer <token>` header automatically.
 4. **Strings** — add new server messages to `server/messages.ts`,
    client strings to `client/js/strings.js`.
 5. **Deploy** (`npm run deploy`).
@@ -330,8 +335,12 @@ environment, or use `wrangler.jsonc` env stanzas if you set up multiple.
 
 ```bash
 npm run deploy
-# → wrangler deploy → published to https://lesapay.<account>.workers.dev/
+# → wrangler deploy → published to https://<worker-name>.<account>.workers.dev/
 ```
+
+`<worker-name>` is the `name` field in `wrangler.jsonc`; `<account>` is your
+Cloudflare account subdomain. The actual URL prints at the end of the deploy
+output and is also visible in the Cloudflare dashboard under Workers & Pages.
 
 The Worker URL stays the same across deploys; the SPA shell, the JS, and the
 API are all updated atomically.
@@ -363,19 +372,29 @@ because the Service Account itself owns its delegation.
 
 ## Security model (and its limits)
 
-- The Worker URL is publicly reachable. Anyone who learns the URL can call
-  `getData` / `applyTask` for any user.
-- `approveTask` / `rejectTask` / `cashout` require `PARENT_PASSWORD` verified
-  by the Worker (`checkPassword`, constant-time compare).
+- **`ACCESS_TOKEN` gates every `/api` call.** The Worker rejects any request
+  whose `Authorization: Bearer <token>` header doesn't match the secret
+  (constant-time compare). Without it, a stranger who learns the Worker URL
+  sees only the locked screen — no `getData` / `applyTask` is reachable.
+- The token is captured once via the invitation URL `?k=<token>`, stored in
+  `localStorage`, and stripped from the address bar via `history.replaceState`
+  so it doesn't leak through screenshots / browser history. LINE notification
+  links intentionally do *not* embed the token because LINE history is durable
+  and easily forwarded; family members open links from a previously invited
+  device.
+- `approveTask` / `rejectTask` / `cashout` additionally require `PARENT_PASSWORD`
+  verified by the Worker (`checkPassword`, constant-time compare).
 - The frontend stores the verified password in `localStorage` after a
   successful login. This effectively turns the device into a "parent device"
   for the parent-mode auto-login from LINE notifications.
-- Secrets (`GOOGLE_PRIVATE_KEY`, etc.) live only in `wrangler secret`-managed
-  storage on Cloudflare; they are never sent to the browser.
-- We accept the residual risks (siblings inspecting `localStorage`, an
-  attacker discovering the URL) for a small family-internal app. If wider
-  exposure becomes a concern, add a server-side family token gate to every
-  action.
+- Secrets (`GOOGLE_PRIVATE_KEY`, `ACCESS_TOKEN`, etc.) live only in
+  `wrangler secret`-managed storage on Cloudflare; they are never sent to the
+  browser.
+- We accept the residual risks (siblings inspecting `localStorage`, the
+  invitation URL leaking inside the family) for a small family-internal app.
+  Token rotation is straightforward: `wrangler secret put ACCESS_TOKEN` +
+  `npm run deploy` invalidates every stored client token (next /api call gets
+  401 → locked screen) and a fresh invite URL is distributed.
 
 ## Things that intentionally aren't here
 
