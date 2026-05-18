@@ -49,11 +49,13 @@ export const HISTORY_COL = Object.fromEntries(
 export const HISTORY_COL_COUNT = HISTORY_SCHEMA.length;
 export const HISTORY_LAST_COL_LETTER = colLetter(HISTORY_COL_COUNT);
 
-// Special history content labels used in HISTORY.CONTENT.
+// Emoji-prefixed history content labels used in HISTORY.CONTENT.
+// Older rows that still carry " (提出)" / " (承認)" suffixes render as-is —
+// we don't rewrite history. New rows use these prefixes.
 export const HISTORY_LABEL = {
-	SUBMIT_SUFFIX: " (提出)",
-	APPROVE_SUFFIX: " (承認)",
-	CASHOUT: "ポイント消費",
+	SUBMIT_PREFIX: "📩 ",
+	APPROVE_PREFIX: "✅ ",
+	CASHOUT: "💸 ポイント消費",
 } as const;
 
 // Column index (1-based) → column letter (A, B, ..., Z, AA, ...).

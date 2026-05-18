@@ -112,17 +112,18 @@ async function handleApplyTask(env: Env, user: string, taskId: string, origin: s
 	const submitReward = toNumber(row[TASK_COL.SUBMIT_REWARD]);
 	const completeReward = toNumber(row[TASK_COL.COMPLETE_REWARD]);
 	const subject = String(row[TASK_COL.SUBJECT] ?? "");
+	const category = String(row[TASK_COL.CATEGORY] ?? "");
 	const title = String(row[TASK_COL.TITLE] ?? "");
+	const taskLabel = composeTaskLabel(subject, category, title);
 
 	// Submit reward fires only on the first transition (PENDING → APPLIED).
 	// Resubmitting from REJECTED skips the submit reward.
 	const isFirstSubmit = currentStatus !== STATUS.REJECTED;
 
 	if (isFirstSubmit && submitReward > 0) {
-		const content = (subject ? subject + " " : "") + title + HISTORY_LABEL.SUBMIT_SUFFIX;
 		await appendHistoryRow(env, token, historySheet, [
 			formatDateTime(new Date()),
-			content,
+			HISTORY_LABEL.SUBMIT_PREFIX + taskLabel,
 			submitReward,
 		]);
 	}
@@ -138,8 +139,7 @@ async function handleApplyTask(env: Env, user: string, taskId: string, origin: s
 		user,
 		fmt(MSG.notifySubjectApply, { user: displayName }),
 		buildApplyNotifyBody(displayName, {
-			subject,
-			title,
+			taskLabel,
 			completeReward,
 			submitReward: isFirstSubmit ? submitReward : 0,
 		}),
@@ -148,12 +148,17 @@ async function handleApplyTask(env: Env, user: string, taskId: string, origin: s
 	return { taskId };
 }
 
+// "subject category title" with empty parts skipped. Used both for history
+// CONTENT and LINE notification bodies, so all three callers stay consistent.
+function composeTaskLabel(subject: string, category: string, title: string): string {
+	return [subject, category, title].filter((s) => s && s.length > 0).join(" ");
+}
+
 function buildApplyNotifyBody(
 	displayName: string,
-	p: { subject: string; title: string; completeReward: number; submitReward: number },
+	p: { taskLabel: string; completeReward: number; submitReward: number },
 ): string {
-	const taskLabel = (p.subject ? p.subject + " " : "") + p.title;
-	const lines = [fmt(MSG.notifyApplyBodyHeader, { user: displayName, label: taskLabel })];
+	const lines = [fmt(MSG.notifyApplyBodyHeader, { user: displayName, label: p.taskLabel })];
 	if (p.submitReward > 0) {
 		lines.push(fmt(MSG.notifyApplyBodySubmit, { pt: p.submitReward }));
 	}
@@ -180,10 +185,10 @@ async function handleApproveTask(env: Env, user: string, taskId: string, passwor
 	}
 
 	const subject = String(row[TASK_COL.SUBJECT] ?? "");
+	const category = String(row[TASK_COL.CATEGORY] ?? "");
 	const title = String(row[TASK_COL.TITLE] ?? "");
 	const points = toNumber(row[TASK_COL.COMPLETE_REWARD]);
-	const content =
-		(subject ? `${subject} ${title}` : title) + HISTORY_LABEL.APPROVE_SUFFIX;
+	const content = HISTORY_LABEL.APPROVE_PREFIX + composeTaskLabel(subject, category, title);
 
 	// Append history first, then flip status. A partial failure that stops
 	// after the history append leaves the task still APPLIED (visible to the
