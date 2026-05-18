@@ -34,6 +34,16 @@ API と SPA を同じ Worker (同一オリジン) で配信するため、フロ
 
 ## セットアップ
 
+### 0. Cloudflare アカウントと wrangler
+
+[Cloudflare](https://dash.cloudflare.com/sign-up) で無料アカウントを作成し、ローカルから wrangler でログインします。
+
+```bash
+npx wrangler login   # ブラウザが開いて Cloudflare 認証
+```
+
+以降の `wrangler secret put` / `wrangler deploy` はこの認証情報を使います。
+
 ### 1. スプレッドシート作成（家族で1つ）
 
 1. 新しい Google スプレッドシートを作成（例: `LesaPay`）
@@ -65,6 +75,8 @@ Worker は Sheets API v4 を Service Account で叩きます。
 
 ### 3. Cloudflare Worker をデプロイ
 
+`wrangler.jsonc` の `"name"` を自分が使いたい Worker 名に変更します (デフォルトは `lesapay`)。これがそのままデプロイURLのサブドメインになります (例: `"happy-coins"` → `https://happy-coins.<account>.workers.dev/`)。
+
 ```bash
 npm install
 
@@ -79,6 +91,8 @@ npx wrangler secret put USERS                 # 子の一覧 (JSON, 下記参照
 # デプロイ
 npm run deploy
 ```
+
+`npm run deploy` の出力末尾に `Deployed lesapay triggers (...) https://<name>.<account>.workers.dev` のようにURLが表示されます。これがアプリのトップURLです。後から確認するときは Cloudflare ダッシュボード → Workers & Pages からも見られます。
 
 #### `USERS` の形式
 
