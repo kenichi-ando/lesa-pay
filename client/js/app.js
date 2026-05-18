@@ -40,7 +40,7 @@
   }
 
   // ---------- localStorage helpers ----------
-  // The user list itself is owned by the server (設定 sheet). We only
+  // The user list itself is owned by the server (USERS secret). We only
   // remember the most recently selected user key and the parent password.
   const store = {
     getUser()           { return localStorage.getItem(SK.user); },
@@ -57,7 +57,7 @@
   // ---------- State ----------
   const state = {
     user: null,            // currently selected user key (sheet-name suffix)
-    serverUsers: [],       // [{key, label}] from the server (設定 sheet USERS row)
+    serverUsers: [],       // [{key, label}] from the server (USERS secret)
     parentMode: false,
     parentPassword: null,
     tasks: [],
@@ -370,7 +370,7 @@
   function renderUserPopover() {
     const list = state.serverUsers;
     if (list.length === 0) {
-      // USERS row of the 設定 sheet is empty — surface it to the operator.
+      // USERS secret is empty — surface it to the operator.
       els.userPopoverList.innerHTML = `<li class="user-popover-empty">${escapeHtml(tr('setup.needUsers'))}</li>`;
       return;
     }
@@ -461,7 +461,7 @@
     }
 
     if (state.serverUsers.length === 0) {
-      // USERS unset in the 設定 sheet — nothing to render. Tell the operator.
+      // USERS secret unset — nothing to render. Tell the operator.
       toast(tr('setup.needUsers'), 'error');
       return;
     }

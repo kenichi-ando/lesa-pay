@@ -2,20 +2,20 @@
  * LINE Messaging API broadcast.
  *
  * Best-effort: failures are logged but never break the caller's flow.
- * No-op if LINE_TOKEN is not set in the 設定 sheet.
+ * No-op if env.LINE_TOKEN is not set as a wrangler secret.
  */
 
-import type { Config } from "./config";
+import type { Env } from "./env";
 import { MSG } from "./messages";
 
 export async function notify(
-	cfg: Config,
+	env: Env,
 	origin: string,
 	targetUser: string,
 	subject: string,
 	body: string,
 ): Promise<void> {
-	if (!cfg.lineToken) return;
+	if (!env.LINE_TOKEN) return;
 
 	let message = `【${subject}】\n${body}`;
 	if (origin) {
@@ -33,7 +33,7 @@ export async function notify(
 		const res = await fetch("https://api.line.me/v2/bot/message/broadcast", {
 			method: "POST",
 			headers: {
-				Authorization: `Bearer ${cfg.lineToken}`,
+				Authorization: `Bearer ${env.LINE_TOKEN}`,
 				"Content-Type": "application/json",
 			},
 			body: JSON.stringify({

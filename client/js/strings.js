@@ -9,10 +9,7 @@ window.LESAPAY_STRINGS = {
   app: { title: 'LesaPay' },
 
   header: {
-    settings: '設定',
     parentMode: '保護者モード',
-    parentModeOn: '🔓 保護者モード',
-    lock: 'ロック',
     refresh: '更新',
     switchUser: 'ユーザを切り替える'
   },
@@ -21,9 +18,7 @@ window.LESAPAY_STRINGS = {
     label: 'いまのポイント',
     unit: 'pt',
     loading: '読み込み中…',
-    updating: '更新中…',
-    metaWithName: '{name} の残高 / 履歴 {count} 件',
-    meta: '残高 / 履歴 {count} 件'
+    updating: '更新中…'
   },
 
   tasks: {
@@ -84,7 +79,7 @@ window.LESAPAY_STRINGS = {
   },
 
   setup: {
-    needUsers: '設定シートの USERS にユーザを記入してください'
+    needUsers: 'USERS シークレット (wrangler secret put USERS) を設定してください'
   },
 
   locked: {

@@ -71,7 +71,7 @@ export const ACTIONS: Record<string, ActionDef> = {
 // ---------------------------------------------------------------------------
 
 async function handleGetConfig(env: Env) {
-	const cfg = await fetchConfig(env);
+	const cfg = fetchConfig(env);
 	return {
 		users: cfg.users,
 		status: STATUS,
@@ -85,7 +85,7 @@ async function handleGetData(env: Env, user: string) {
 }
 
 async function handleVerifyPassword(env: Env, password: unknown) {
-	await checkPassword(env, password);
+	checkPassword(env, password);
 	return { verified: true };
 }
 
@@ -130,10 +130,10 @@ async function handleApplyTask(env: Env, user: string, taskId: string, origin: s
 	await casTaskStatus(env, token, tasksSheet, rowIndex, currentStatus, STATUS.APPLIED);
 
 	// LINE notification — best effort; never break the user flow.
-	const cfg = await fetchConfig(env);
+	const cfg = fetchConfig(env);
 	const displayName = labelFor(cfg.users, user);
 	await notify(
-		cfg,
+		env,
 		origin,
 		user,
 		fmt(MSG.notifySubjectApply, { user: displayName }),
@@ -164,7 +164,7 @@ function buildApplyNotifyBody(
 }
 
 async function handleApproveTask(env: Env, user: string, taskId: string, password: unknown) {
-	await checkPassword(env, password);
+	checkPassword(env, password);
 	if (!taskId) throw new HttpError(400, MSG.errTaskIdMissing);
 
 	const token = await getAccessToken(env);
@@ -206,7 +206,7 @@ async function handleCashout(
 	password: unknown,
 	origin: string,
 ) {
-	await checkPassword(env, password);
+	checkPassword(env, password);
 	const amt = Number(amount);
 	if (!Number.isFinite(amt) || amt <= 0) throw new HttpError(400, MSG.errInvalidAmount);
 
@@ -227,10 +227,10 @@ async function handleCashout(
 	]);
 	const balance = total - amt;
 
-	const cfg = await fetchConfig(env);
+	const cfg = fetchConfig(env);
 	const displayName = labelFor(cfg.users, user);
 	await notify(
-		cfg,
+		env,
 		origin,
 		user,
 		fmt(MSG.notifySubjectCashout, { user: displayName }),
@@ -241,7 +241,7 @@ async function handleCashout(
 }
 
 async function handleRejectTask(env: Env, user: string, taskId: string, password: unknown) {
-	await checkPassword(env, password);
+	checkPassword(env, password);
 	if (!taskId) throw new HttpError(400, MSG.errTaskIdMissing);
 
 	const token = await getAccessToken(env);

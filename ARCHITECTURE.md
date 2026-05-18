@@ -23,7 +23,7 @@ structured and how to extend it safely" — in English, alongside the source.
         │                          │  Google     │  │  LINE        │
         │                          │  Spreadsheet│  │  Messaging   │
         │                          │  per-child  │  │  API         │
-        │                          │  + 設定 sheet│  │  (broadcast) │
+        │                          │  (data only)│  │  (broadcast) │
         │                          └─────────────┘  └──────────────┘
         │                                                  │
         │            tap notification deep link            │
@@ -47,7 +47,7 @@ lesa-pay/
 │   ├── index.ts           # Top-level fetch handler + dispatch
 │   ├── actions.ts         # ACTIONS table + handlers
 │   ├── api.ts             # Sheets API v4 + Service Account JWT
-│   ├── config.ts          # 設定 sheet → Config object
+│   ├── config.ts          # wrangler secrets → Config object
 │   ├── schema.ts          # Sheet schema (TASK_SCHEMA, STATUS, etc.)
 │   ├── messages.ts        # MSG catalog + fmt() template helper
 │   ├── notify.ts          # LINE Messaging API
@@ -107,17 +107,18 @@ await api('myNewAction', { foo: 42 });
 
 `localStorage` carries only:
 
-| Key                  | Purpose |
-| -------------------- | ------- |
-| `lesapay_user`       | Currently selected sheet-name suffix (a key into the `USERS` roster) |
-| `lesapay_parent_pw`  | Last successful parent password — used for parent-mode deep-link auto-login |
+| Key                     | Purpose |
+| ----------------------- | ------- |
+| `lesapay_user`          | Currently selected sheet-name suffix (a key into the `USERS` roster) |
+| `lesapay_parent_pw`     | Last successful parent password — used for parent-mode deep-link auto-login |
+| `lesapay_access_token`  | Shared invitation token, captured once from `?k=<token>` and sent on every `/api` call as `Authorization: Bearer …`. Cleared on 401 (token rotated server-side). |
 
 Tasks and history are *not* cached across reloads. The user roster itself is
-*not* persisted — it is fetched from the Worker via `getConfig` on every boot,
-so editing the `USERS` / `USER_LABELS` rows of the 設定 sheet propagates
-without redeploying or clearing client storage. There is no API URL stored
-either: the SPA and `/api` are co-hosted, so the frontend just calls a relative
-`/api`.
+*not* persisted in the browser — it is fetched from the Worker via `getConfig`
+on every boot. Roster changes therefore require a `wrangler secret put USERS`
++ `npm run deploy`; client-side changes alone are not enough. There is no API
+URL stored either: the SPA and `/api` are co-hosted, so the frontend just
+calls a relative `/api`.
 
 ### 4. Side effects (notifications, etc.) belong on the server.
 
@@ -147,8 +148,9 @@ origin. This is a deliberate choice that buys us several niceties:
 
 ## Schema
 
-Source of truth is `server/schema.ts`. The 設定 sheet driving runtime
-config is read by `server/config.ts`.
+Source of truth is `server/schema.ts`. Runtime config (passwords, roster,
+LINE token) lives in `wrangler secret`-managed env vars and is read by
+`server/config.ts`.
 
 ### Task sheet (`課題_<user>`)
 
@@ -178,22 +180,34 @@ automatically. Existing sheets need a manual header insert.
 | 1     | `CONTENT` | 内容    | Free-form. e.g. `"英語 単語50個 (承認)"`, `"ポイント消費"` |
 | 2     | `POINTS`  | ポイント | Positive (reward) or negative (cashout) |
 
-### Config sheet (`設定`)
+### Runtime config (wrangler secrets)
 
-A simple key→values map (column A = key, B onwards = values). Read once per
-request via `fetchConfig()`. Every parent-only action calls `checkPassword()`
-which re-reads this sheet, so changes propagate without redeploying the Worker.
+All runtime knobs are wrangler secrets, read from `env` by `fetchConfig()`.
+There is no spreadsheet round-trip on parent actions — `checkPassword()` is
+synchronous. Changes require `wrangler secret put …` + `npm run deploy`.
 
-| Key (col A)       | Required | Notes |
-| ----------------- | :------: | ----- |
-| `PARENT_PASSWORD` | ✅      | Single value in B. Compared with `constantTimeEqual`. |
-| `USERS`           | ✅      | Sheet-name suffixes spread across B, C, D… in display order. The suffix is what gets sent over the wire as `req.user`. |
-| `USER_LABELS`     | ⬜      | Display labels, parallel to `USERS`. Falls back to the key when missing. |
-| `LINE_TOKEN`      | ⬜      | LINE Messaging API channel access token. Notifications skipped if blank. |
+| Secret             | Required | Notes |
+| ------------------ | :------: | ----- |
+| `GOOGLE_CLIENT_EMAIL` | ✅   | Service Account email for Sheets API. |
+| `GOOGLE_PRIVATE_KEY`  | ✅   | Service Account private key (PEM). |
+| `SHEET_ID`            | ✅   | Target spreadsheet (one per family). |
+| `ACCESS_TOKEN`        | ✅   | Shared invitation token gating `/api`. Verified with `constantTimeEqual`. |
+| `PARENT_PASSWORD`     | ✅   | Parent-mode password. Verified on approve / reject / cashout. |
+| `USERS`               | ✅   | JSON array of `{key,label}`. Drives the in-app roster. |
+| `LINE_TOKEN`          | ⬜   | LINE Messaging API channel access token. Notifications skipped if unset. |
 
-There is no `APP_URL` row: deep-link URLs in LINE notifications are built from
-the request's own origin (`new URL(req.url).origin`), which is trustworthy on
-Cloudflare.
+`USERS` example:
+
+```json
+[{"key":"Light","label":"ライト"},{"key":"Tiara","label":"ティアラ"}]
+```
+
+`label` is optional (defaults to `key`). The parsed list is cached per Worker
+isolate, so successive requests don't re-parse the JSON.
+
+There is no `APP_URL` secret: deep-link URLs in LINE notifications are built
+from the request's own origin (`new URL(req.url).origin`), which is
+trustworthy on Cloudflare.
 
 ### Status values
 
@@ -250,7 +264,8 @@ the schema, because the spreadsheet is the parent-facing source of truth.
 - `api.ts` — Sheets API + JWT-based access token issuance via Web Crypto
   (`crypto.subtle.sign` with RS256). Also `casTaskStatus` (the optimistic-lock
   primitive) and the row shaping for the frontend.
-- `config.ts` — `fetchConfig` reads the 設定 sheet on every parent-action call.
+- `config.ts` — `fetchConfig` reads runtime config (`PARENT_PASSWORD`, `USERS`)
+  from `env`. Synchronous; the parsed `USERS` JSON is cached per isolate.
   `checkPassword` is the only auth gate.
 - `schema.ts` — column indexes, status values, sheet name prefixes.
 - `notify.ts` — LINE broadcast (best effort; never breaks the user flow).
@@ -324,13 +339,10 @@ API are all updated atomically.
 
 ### Required secrets
 
-Set once with `wrangler secret put <NAME>`:
-
-| Secret                | Notes |
-| --------------------- | ----- |
-| `GOOGLE_CLIENT_EMAIL` | Service Account `client_email`. |
-| `GOOGLE_PRIVATE_KEY`  | Service Account `private_key` (the multi-line PEM, including BEGIN/END lines). Wrangler accepts it as one input — don't escape newlines. |
-| `SHEET_ID`            | Target spreadsheet ID. |
+Set once with `wrangler secret put <NAME>`. See the table in the [Runtime
+config](#runtime-config-wrangler-secrets) section above for the full list.
+Required at minimum: `GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `SHEET_ID`,
+`ACCESS_TOKEN`, `PARENT_PASSWORD`, `USERS`. `LINE_TOKEN` is optional.
 
 The Service Account must be granted **Editor** access to the spreadsheet (share
 the sheet with `client_email`).
@@ -339,9 +351,10 @@ the sheet with `client_email`).
 
 | Sheet              | Notes |
 | ------------------ | ----- |
-| `設定`             | At minimum `PARENT_PASSWORD` and `USERS`. See README. |
 | `課題_<user>`      | One per child. Headers in row 1 must match `TASK_SCHEMA`. |
 | `履歴_<user>`      | One per child. Headers in row 1 must match `HISTORY_SCHEMA`. |
+
+There is no longer a `設定` sheet — runtime config moved to wrangler secrets.
 
 ### OAuth scope
 
@@ -393,7 +406,6 @@ When reviewing a PR, the things most likely to be wrong:
    it, two concurrent requests can both pass the read-side validation and
    produce a lost update.
 6. New side effects added on the frontend instead of in the Worker. Move them.
-7. The user roster is server-managed via `USERS` / `USER_LABELS` in the 設定
-   sheet. If you find code that adds or deletes users from the client side,
-   that is a regression — the roster is intentionally read-only on the
-   frontend.
+7. The user roster is server-managed via the `USERS` wrangler secret (JSON).
+   If you find code that adds or deletes users from the client side, that is
+   a regression — the roster is intentionally read-only on the frontend.

@@ -9,7 +9,6 @@ export const SHEET_PREFIX = {
 	TASKS: "課題_",
 	HISTORY: "履歴_",
 } as const;
-export const CONFIG_SHEET = "設定";
 
 // Task statuses written into the STATUS column.
 export const STATUS = {
