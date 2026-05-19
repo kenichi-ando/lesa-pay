@@ -109,7 +109,7 @@ export async function readUserData(
 
 	const tasksRange = `${tasksSheet}!A2:${TASK_LAST_COL_LETTER}`;
 	const historyRange = `${historySheet}!A2:${HISTORY_LAST_COL_LETTER}`;
-	const url = `https://sheets.googleapis.com/v4/spreadsheets/${env.SHEET_ID}/values:batchGet?ranges=${encodeURIComponent(tasksRange)}&ranges=${encodeURIComponent(historyRange)}&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING`;
+	const url = `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SHEET_ID}/values:batchGet?ranges=${encodeURIComponent(tasksRange)}&ranges=${encodeURIComponent(historyRange)}&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING`;
 	const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
 	if (!res.ok) {
 		throw new HttpError(
@@ -167,7 +167,7 @@ function collectAutoFillUpdates(rows: unknown[][], tasksSheet: string): ValueUpd
 }
 
 async function batchUpdateValues(env: Env, token: string, updates: ValueUpdate[]) {
-	const url = `https://sheets.googleapis.com/v4/spreadsheets/${env.SHEET_ID}/values:batchUpdate`;
+	const url = `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SHEET_ID}/values:batchUpdate`;
 	const res = await fetch(url, {
 		method: "POST",
 		headers: {
@@ -191,7 +191,7 @@ export async function findTaskRow(
 	taskId: string,
 ): Promise<{ row: unknown[]; rowIndex: number }> {
 	const range = `${tasksSheet}!A2:${TASK_LAST_COL_LETTER}`;
-	const url = `https://sheets.googleapis.com/v4/spreadsheets/${env.SHEET_ID}/values/${encodeURIComponent(range)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING`;
+	const url = `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SHEET_ID}/values/${encodeURIComponent(range)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING`;
 	const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
 	if (!res.ok) {
 		throw new HttpError(404, MSG.errTaskNotFound);
@@ -220,7 +220,7 @@ export async function casTaskStatus(
 	next: string,
 ): Promise<void> {
 	const cell = `${tasksSheet}!${colLetter(TASK_COL.STATUS + 1)}${rowIndex}`;
-	const readUrl = `https://sheets.googleapis.com/v4/spreadsheets/${env.SHEET_ID}/values/${encodeURIComponent(cell)}?valueRenderOption=UNFORMATTED_VALUE`;
+	const readUrl = `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SHEET_ID}/values/${encodeURIComponent(cell)}?valueRenderOption=UNFORMATTED_VALUE`;
 	const readRes = await fetch(readUrl, { headers: { Authorization: `Bearer ${token}` } });
 	if (!readRes.ok) {
 		throw new HttpError(502, `STATUS read failed: ${readRes.status}`);
@@ -231,7 +231,7 @@ export async function casTaskStatus(
 		throw new HttpError(409, fmt(MSG.errNotAppliedTask, { status: current }));
 	}
 
-	const writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${env.SHEET_ID}/values/${encodeURIComponent(cell)}?valueInputOption=USER_ENTERED`;
+	const writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SHEET_ID}/values/${encodeURIComponent(cell)}?valueInputOption=USER_ENTERED`;
 	const writeRes = await fetch(writeUrl, {
 		method: "PUT",
 		headers: {
@@ -256,7 +256,7 @@ export async function readHistoryRows(
 	historySheet: string,
 ): Promise<{ date: string; content: string; points: number }[]> {
 	const range = `${historySheet}!A2:${HISTORY_LAST_COL_LETTER}`;
-	const url = `https://sheets.googleapis.com/v4/spreadsheets/${env.SHEET_ID}/values/${encodeURIComponent(range)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING`;
+	const url = `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SHEET_ID}/values/${encodeURIComponent(range)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING`;
 	const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
 	if (!res.ok) {
 		throw new HttpError(404, `History sheet not found: ${historySheet} (${res.status})`);
@@ -287,7 +287,7 @@ export async function appendHistoryRow(
 	// string. With USER_ENTERED, Sheets parses it as a date and stores a serial
 	// number, which then renders as "46160.4166…" unless the column is formatted
 	// as a date — leaking spreadsheet semantics into the UI.
-	const url = `https://sheets.googleapis.com/v4/spreadsheets/${env.SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
+	const url = `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
 	const res = await fetch(url, {
 		method: "POST",
 		headers: {

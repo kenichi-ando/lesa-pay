@@ -16,8 +16,15 @@ import {
 	readHistoryRows,
 	readUserData,
 } from "./api";
-import { checkPassword, fetchConfig, labelFor } from "./config";
+import { checkPin, fetchConfig, labelFor } from "./config";
 import { notify } from "./notify";
+import {
+	getPushPublicKey,
+	normalizePushSubscription,
+	pushEnabled,
+	removePushSubscription,
+	upsertPushSubscription,
+} from "./push";
 import { HttpError, formatDateTime, isExpired, toNumber } from "./util";
 
 export interface ActionRequest {
@@ -28,7 +35,7 @@ export interface ActionRequest {
 
 interface ActionDef {
 	requireUser: boolean;
-	handler: (req: ActionRequest, env: Env, origin: string) => Promise<unknown>;
+	handler: (req: ActionRequest, env: Env) => Promise<unknown>;
 }
 
 export const ACTIONS: Record<string, ActionDef> = {
@@ -40,29 +47,38 @@ export const ACTIONS: Record<string, ActionDef> = {
 		requireUser: true,
 		handler: async (req, env) => handleGetData(env, req.user as string),
 	},
-	verifyPassword: {
+	verifyPin: {
 		requireUser: false,
-		handler: async (req, env) => handleVerifyPassword(env, req.password),
+		handler: async (req, env) => handleVerifyPin(env, req.pin),
 	},
 	applyTask: {
 		requireUser: true,
-		handler: async (req, env, origin) =>
-			handleApplyTask(env, req.user as string, req.taskId as string, origin),
+		handler: async (req, env) =>
+			handleApplyTask(env, req.user as string, req.taskId as string),
 	},
 	approveTask: {
 		requireUser: true,
 		handler: async (req, env) =>
-			handleApproveTask(env, req.user as string, req.taskId as string, req.password),
+			handleApproveTask(env, req.user as string, req.taskId as string, req.pin),
 	},
 	rejectTask: {
 		requireUser: true,
 		handler: async (req, env) =>
-			handleRejectTask(env, req.user as string, req.taskId as string, req.password),
+			handleRejectTask(env, req.user as string, req.taskId as string, req.pin),
 	},
 	cashout: {
 		requireUser: true,
-		handler: async (req, env, origin) =>
-			handleCashout(env, req.user as string, req.amount, req.password, origin),
+		handler: async (req, env) =>
+			handleCashout(env, req.user as string, req.amount, req.pin),
+	},
+	subscribePush: {
+		requireUser: true,
+		handler: async (req, env) =>
+			handleSubscribePush(env, req.user as string, req.subscription, req.role),
+	},
+	unsubscribePush: {
+		requireUser: false,
+		handler: async (req, env) => handleUnsubscribePush(env, req.endpoint),
 	},
 };
 
@@ -75,6 +91,10 @@ async function handleGetConfig(env: Env) {
 	return {
 		users: cfg.users,
 		status: STATUS,
+		push: {
+			enabled: pushEnabled(env),
+			publicKey: getPushPublicKey(env),
+		},
 	};
 }
 
@@ -84,12 +104,12 @@ async function handleGetData(env: Env, user: string) {
 	return readUserData(env, tasksSheet, historySheet);
 }
 
-async function handleVerifyPassword(env: Env, password: unknown) {
-	checkPassword(env, password);
+async function handleVerifyPin(env: Env, pin: unknown) {
+	checkPin(env, pin);
 	return { verified: true };
 }
 
-async function handleApplyTask(env: Env, user: string, taskId: string, origin: string) {
+async function handleApplyTask(env: Env, user: string, taskId: string) {
 	if (!taskId) throw new HttpError(400, MSG.errTaskIdMissing);
 
 	const token = await getAccessToken(env);
@@ -129,26 +149,25 @@ async function handleApplyTask(env: Env, user: string, taskId: string, origin: s
 
 	await casTaskStatus(env, token, tasksSheet, rowIndex, currentStatus, STATUS.SUBMITTED);
 
-	// LINE notification — best effort; never break the user flow.
+	// Notification — best effort; never break the user flow.
 	const cfg = fetchConfig(env);
 	const displayName = labelFor(cfg.users, user);
 	await notify(
 		env,
-		origin,
-		user,
 		fmt(MSG.notifySubjectApply, { user: displayName }),
 		buildApplyNotifyBody(displayName, {
 			taskLabel,
 			completeReward,
 			submitReward: isFirstSubmit ? submitReward : 0,
 		}),
+		"parent",
 	);
 
 	return { taskId };
 }
 
 // "category title" with empty parts skipped. Used both for history CONTENT
-// and LINE notification bodies, so the two callers stay consistent.
+// and notification bodies, so the two callers stay consistent.
 function composeTaskLabel(category: string, title: string): string {
 	return [category, title].filter((s) => s && s.length > 0).join(" ");
 }
@@ -167,8 +186,8 @@ function buildApplyNotifyBody(
 	return lines.join("\n");
 }
 
-async function handleApproveTask(env: Env, user: string, taskId: string, password: unknown) {
-	checkPassword(env, password);
+async function handleApproveTask(env: Env, user: string, taskId: string, pin: unknown) {
+	checkPin(env, pin);
 	if (!taskId) throw new HttpError(400, MSG.errTaskIdMissing);
 
 	const token = await getAccessToken(env);
@@ -206,10 +225,9 @@ async function handleCashout(
 	env: Env,
 	user: string,
 	amount: unknown,
-	password: unknown,
-	origin: string,
+	pin: unknown,
 ) {
-	checkPassword(env, password);
+	checkPin(env, pin);
 	const amt = Number(amount);
 	if (!Number.isFinite(amt) || amt <= 0) throw new HttpError(400, MSG.errInvalidAmount);
 
@@ -234,17 +252,21 @@ async function handleCashout(
 	const displayName = labelFor(cfg.users, user);
 	await notify(
 		env,
-		origin,
-		user,
 		fmt(MSG.notifySubjectCashout, { user: displayName }),
 		fmt(MSG.notifyCashoutBody, { user: displayName, amount: amt, balance }),
+		"parent",
 	);
 
 	return { amount: amt, balance };
 }
 
-async function handleRejectTask(env: Env, user: string, taskId: string, password: unknown) {
-	checkPassword(env, password);
+async function handleRejectTask(
+	env: Env,
+	user: string,
+	taskId: string,
+	pin: unknown,
+) {
+	checkPin(env, pin);
 	if (!taskId) throw new HttpError(400, MSG.errTaskIdMissing);
 
 	const token = await getAccessToken(env);
@@ -258,6 +280,33 @@ async function handleRejectTask(env: Env, user: string, taskId: string, password
 	}
 
 	await casTaskStatus(env, token, tasksSheet, rowIndex, currentStatus, STATUS.REJECTED);
+	const cfg = fetchConfig(env);
+	const displayName = labelFor(cfg.users, user);
+	const category = String(row[TASK_COL.CATEGORY] ?? "");
+	const title = String(row[TASK_COL.TITLE] ?? "");
+	const taskLabel = composeTaskLabel(category, title);
+	await notify(
+		env,
+		fmt(MSG.notifySubjectReject, { user: displayName }),
+		fmt(MSG.notifyRejectBody, { user: displayName, label: taskLabel }),
+		"child",
+	);
 
 	return { taskId };
+}
+
+async function handleSubscribePush(
+	env: Env,
+	user: string,
+	subscription: unknown,
+	role: unknown,
+) {
+	const normalized = normalizePushSubscription(subscription);
+	await upsertPushSubscription(env, user, normalized, role);
+	return { subscribed: true };
+}
+
+async function handleUnsubscribePush(env: Env, endpoint: unknown) {
+	await removePushSubscription(env, endpoint);
+	return { unsubscribed: true };
 }

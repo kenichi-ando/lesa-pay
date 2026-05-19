@@ -7,12 +7,21 @@
       getUser: function () { return localStorage.getItem(sk.user); },
       setUser: function (user) { localStorage.setItem(sk.user, user); },
       clearUser: function () { localStorage.removeItem(sk.user); },
-      getParentPw: function () { return localStorage.getItem(sk.parentPw); },
-      setParentPw: function (pw) { localStorage.setItem(sk.parentPw, pw); },
-      clearParentPw: function () { localStorage.removeItem(sk.parentPw); },
+      getParentPin: function () { return localStorage.getItem(sk.parentPin); },
+      setParentPin: function (pin) { localStorage.setItem(sk.parentPin, pin); },
+      clearParentPin: function () { localStorage.removeItem(sk.parentPin); },
+      getParentMode: function () { return localStorage.getItem(sk.parentMode) === '1'; },
+      setParentMode: function (enabled) {
+        if (enabled) localStorage.setItem(sk.parentMode, '1');
+        else localStorage.removeItem(sk.parentMode);
+      },
+      clearParentMode: function () { localStorage.removeItem(sk.parentMode); },
       getAccessToken: function () { return localStorage.getItem(sk.accessToken); },
       setAccessToken: function (token) { localStorage.setItem(sk.accessToken, token); },
-      clearAccessToken: function () { localStorage.removeItem(sk.accessToken); }
+      clearAccessToken: function () { localStorage.removeItem(sk.accessToken); },
+      getPushPromptDismissed: function () { return localStorage.getItem(sk.pushPromptDismissed) === '1'; },
+      setPushPromptDismissed: function () { localStorage.setItem(sk.pushPromptDismissed, '1'); },
+      clearPushPromptDismissed: function () { localStorage.removeItem(sk.pushPromptDismissed); }
     };
   }
 

@@ -24,9 +24,7 @@
         })) + '</span>';
       }
       if (com > 0) {
-        const wasResubmit = task.status === status.REJECTED && sub > 0;
-        const key = wasResubmit ? 'tasks.rewardCompleteLabeled' : 'tasks.rewardCompleteOnly';
-        return '<span class="task-points">' + escapeHtml(tr(key, {
+        return '<span class="task-points">' + escapeHtml(tr('tasks.rewardCompleteOnly', {
           complete: com.toLocaleString()
         })) + '</span>';
       }
@@ -56,6 +54,8 @@
           '          <button class="task-btn approve-btn" data-task-id="' + escapeHtml(task.id) + '" data-action="approve">' + escapeHtml(tr('tasks.approve')) + '</button>\n' +
           '          <button class="task-btn reject-btn" data-task-id="' + escapeHtml(task.id) + '" data-action="reject">' + escapeHtml(tr('tasks.reject')) + '</button>\n' +
           '        </div>\n      ';
+      } else if (state.parentMode && (task.status === status.PENDING || task.status === status.REJECTED)) {
+        actionHtml = '';
       } else if (task.status === status.PENDING) {
         actionHtml = '<button class="task-btn" data-task-id="' + escapeHtml(task.id) + '" data-action="apply" ' + (expired ? 'disabled' : '') + '>' + escapeHtml(tr('tasks.apply')) + '</button>';
       } else if (task.status === status.REJECTED) {
@@ -102,8 +102,6 @@
     function renderBalance() {
       const total = state.history.reduce(function (sum, h) { return sum + (Number(h.points) || 0); }, 0);
       els.balance.textContent = total.toLocaleString();
-      els.balanceMeta.textContent = state.loading ? tr('balance.updating') : '';
-      els.balanceMeta.classList.toggle('hidden', !state.loading);
     }
 
     function renderTasks() {

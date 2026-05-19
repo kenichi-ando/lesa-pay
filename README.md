@@ -15,11 +15,15 @@ lesser-pay/
 │   ├── config.ts          # 環境変数 (wrangler secret) → Config
 │   ├── schema.ts          # 課題/履歴シートのスキーマ
 │   ├── messages.ts        # サーバから返す文言
-│   ├── notify.ts          # LINE Messaging API
+│   ├── notify.ts          # 通知ファンアウト (Web Push)
+│   ├── push.ts            # Web Push (VAPID + RFC 8291 aes128gcm)
 │   ├── env.ts             # Worker bindings
 │   └── util.ts
 ├── client/                # フロント一式 (Worker が同オリジンで配信)
 │   ├── index.html
+│   ├── manifest.webmanifest
+│   ├── sw.js                          # Service Worker (Web Push + バッジ管理)
+│   ├── icons/                         # PWA / favicon アイコン
 │   ├── css/style.css
 │   └── js/
 │       ├── config.js                  # localStorage キー定義のみ (個人情報なし)
@@ -95,9 +99,9 @@ npm install
 # シークレット登録 (一度だけ)
 npx wrangler secret put GOOGLE_CLIENT_EMAIL   # Service Account の client_email
 npx wrangler secret put GOOGLE_PRIVATE_KEY    # Service Account JSON の private_key (-----BEGIN/END PRIVATE KEY----- 含む)
-npx wrangler secret put SHEET_ID              # 対象スプレッドシートID
-npx wrangler secret put ACCESS_TOKEN          # 招待トークン (例: `openssl rand -hex 16` の32文字hex)
-npx wrangler secret put PARENT_PASSWORD       # 保護者モードのパスワード
+npx wrangler secret put GOOGLE_SHEET_ID              # 対象スプレッドシートID
+npx wrangler secret put INVITE_CODE           # 招待コード (8文字 / A-Z, 0-9。下の「`INVITE_CODE`」セクション参照)
+npx wrangler secret put PARENT_PIN            # 保護者モードの暗証番号
 npx wrangler secret put USERS                 # 子の一覧 (JSON, 下記参照)
 
 # デプロイ
@@ -108,57 +112,109 @@ npm run deploy
 
 #### `USERS` の形式
 
-`USERS` は子の `key` (シート名サフィックス) と `label` (画面表示名) の配列を JSON 文字列で渡します。例:
+`USERS` は `key:label` の組をカンマ区切りで並べた文字列です。例:
 
-```json
-[{"key":"Light","label":"ライト"},{"key":"Tiara","label":"ティアラ"}]
+```
+Light:ライト, Tiara:ティアラ
 ```
 
-`key` に `Light` を指定すると、対応するシート(タブ)名は `Tasks_Light` / `History_Light` です。`label` を省略するとキーがそのまま表示されます (例: `[{"key":"Light"}]` だけでもOK)。`wrangler secret put USERS` のプロンプトには上記JSONを1行で貼り付けてください。
+`key` に `Light` を指定すると、対応するシート(タブ)名は `Tasks_Light` / `History_Light` です。`label` を省略するとキーがそのまま表示されます (例: `Light, Tiara` だけでもOK)。`:` の前後・カンマの前後の空白は自動で trim されます。
 
-子の追加・改名は `wrangler secret put USERS` で値を更新 → `npm run deploy` → 子用シートを準備、で反映されます。
+子の追加・改名は `wrangler secret put USERS` で値を更新 → 子用シートを準備、で反映されます (secret 更新だけならデプロイ不要)。
 
-#### `ACCESS_TOKEN` (招待トークン)
+#### `INVITE_CODE` (招待コード)
 
-`ACCESS_TOKEN` はリンクを知っている人だけがアプリを使えるようにする「合言葉」です。`/api` への全リクエストはこのトークンで認証されます。生成例:
+`INVITE_CODE` はコードを知っている人だけがアプリを使えるようにする「合言葉」です。`/api` への全リクエストはこのコードで認証されます。現在は **8文字 (大文字 A-Z + 数字 0-9)** です。生成例:
 
 ```bash
-openssl rand -hex 16   # 出力をそのまま `wrangler secret put ACCESS_TOKEN` に貼る
+LC_ALL=C tr -dc 'A-Z0-9' </dev/urandom | head -c 8 ; echo
+# → 例: K7QXZP4M
 ```
 
-デプロイ後、家族には次の **招待URL** を1度だけ送ります (例: `https://<worker-name>.<account>.workers.dev/?k=<token>`)。ブラウザで開くとアプリがトークンを `localStorage` に保存し、URLから `?k=` を自動的に取り除きます。以降は `https://<worker-name>.<account>.workers.dev/` をブックマークしておけばOK。
+デプロイ後、家族にはアプリ URL とこの 8文字の招待コードを別々に伝えます。家族は URL を開くと「招待コードを入力」画面が出るので、そこに 8文字を入力するとアプリが使えるようになります (コードは `localStorage` に保存され、次回以降は自動でログイン)。入力は小文字で打ってもアプリ側で自動で大文字に変換されます。
 
-トークンを変更したい (家族以外に漏れた疑いがあるなど) ときは、`wrangler secret put ACCESS_TOKEN` で新しい値を入れて再デプロイ → 古いリンクは自動的に無効になり、家族に新しい招待URLを配り直します。
+コードを変更したい (家族以外に漏れた疑いがあるなど) ときは、`wrangler secret put INVITE_CODE` で新しい値を入れて再デプロイ → 古いコードは自動的に無効になり、家族に新しいコードを配り直します。
 
 ヘッダーの **ユーザ名チップ** をタップすると `USERS` に登録した子の一覧がドロップダウンで開き、ワンタッチで切り替えられます。
 
-### 4. (任意) LINE 通知の有効化
+### 4. プッシュ通知の有効化 (管理者作業)
 
-家族の LINE グループにではなく、専用の **LINE 公式アカウント** を作って家族で友だち登録するスタイルです。
+通知は VAPID 鍵をサーバに登録すると有効になります。**未設定でもアプリは動きますが、通知ボタン自体が表示されません**。家族のホーム画面追加 (次ステップ) より先に済ませてください。
 
-1. [LINE Developers コンソール](https://developers.line.biz/console/) にログイン → プロバイダーを作成
-2. **「Messaging API」** の新しいチャネルを作成
-3. チャネル詳細の「Messaging API設定」タブで **チャネルアクセストークン (長期)** を発行
-4. 同じタブの QR コード で家族全員に公式アカウントを友だち追加してもらう
-5. `npx wrangler secret put LINE_TOKEN` でトークンを登録 → `npm run deploy`
+1. VAPID キーペアを生成
 
-通知は `broadcast` で送るので、友だち登録した全員に届きます。シークレット未設定なら通知はスキップされ、アプリは通常通り動きます。
+```bash
+npx web-push generate-vapid-keys
+```
+
+2. 以下を `wrangler secret` に登録して再デプロイ
+
+```bash
+npx wrangler secret put PUSH_VAPID_PUBLIC_KEY
+npx wrangler secret put PUSH_VAPID_PRIVATE_KEY
+npx wrangler secret put PUSH_SUBJECT    # 例: mailto:you@example.com (実在のメアド推奨。Apple は example.com 等の架空ドメインを拒否)
+npm run deploy
+```
+
+VAPID 鍵を後から差し替えた場合、過去の鍵で購読していた端末への送信は失敗し続けます。スプレッドシートの `PushSubscriptions` シートのデータ行を全削除し、各端末で通知ボタンをオフ→オンして購読し直してください。
+
+サーバ側は RFC 8291 (aes128gcm) で `{title, body}` を暗号化したペイロードを送ります。Service Worker (`client/sw.js`) は通知受信ごとにバッジ件数を IndexedDB にインクリメント保持し、アプリをフォアグラウンドにすると自動でクリアされます。
+
+## 家族向け：PWA としてホーム画面に追加 (必須)
+
+LesserPay は **PWA としてホーム画面から起動することを前提に作っています**。とくに iOS は PWA としてインストールしないとプッシュ通知が一切届きません。Android も PWA で起動したほうがブラウザのアドレスバー等が消えてアプリらしい見た目になります。
+
+家族には **アプリ URL と 8文字の招待コード** を伝え、必ず以下のいずれかの手順で **ホーム画面に追加 → ホーム画面アイコンから起動 → 招待コードを入力** してください。
+
+### iPhone / iPad (iOS 16.4 以降)
+
+1. **Safari** でアプリ URL を開く (Chrome / Firefox iOS版では PWA インストール不可)
+2. 画面下の共有ボタン (□↑) → 「ホーム画面に追加」 → 「追加」
+3. **ホーム画面のアプリアイコンから起動** (Safari のタブから開くと通知が動きません)
+4. 「アクセスできません」画面で **招待コード (8文字)** を入力
+5. ヘッダー右上のユーザー名チップ → 「⚙️ 設定」 → 「🔔 通知」をオン → 通知許可ダイアログで「許可」
+
+### Android (Chrome)
+
+1. **Chrome** でアプリ URL を開く
+2. アドレスバー右の「︙」メニュー → 「アプリをインストール」または「ホーム画面に追加」
+3. ホーム画面のアプリアイコンから起動
+4. 「アクセスできません」画面で **招待コード (8文字)** を入力
+5. ヘッダー右上のユーザー名チップ → 「⚙️ 設定」 → 「🔔 通知」をオン → 通知許可ダイアログで「許可」
+
+### PC (Chrome / Edge)
+
+1. アプリ URL を開く
+2. アドレスバー右端のインストールアイコン (⊕ 状) をクリック → 「インストール」
+3. デスクトップ / スタートメニューから起動
+4. 「アクセスできません」画面で **招待コード (8文字)** を入力
+5. ヘッダー右上のユーザー名チップ → 「⚙️ 設定」 → 「🔔 通知」をオン → ブラウザの通知許可ダイアログで「許可」
+
+> PC は PWA インストールしなくてもブラウザ通知が動きますが、タブを閉じていると届かないので、家族で揃えるためにもインストール推奨です。
+
+### 通知が来ない時のチェックリスト
+
+- ホーム画面のアイコンから起動している (ブラウザのタブからではない)
+- 「⚙️ 設定」モーダルの「🔔 通知」がオンになっている
+- iOS 設定 → 通知 → LesserPay が「通知を許可」になっている
+- iOS の集中モード／おやすみモードが OFF
+- iOS の場合、バージョンが 16.4 以上である
+
+それでもダメなら、PWA をホーム画面から削除 → 再インストール → 通知をオン、で購読をやり直してください。それでも直らないときは管理者が `npx wrangler tail` で送信ログを確認します ([ARCHITECTURE.md](./ARCHITECTURE.md) の Web Push セクション参照)。
 
 ## 運用フロー
 
 1. **課題の追加** (親) — スプレッドシートの `Tasks_◯◯` シートに行を追加。A列(ID)とB列(状態)は **空欄でOK**。
 2. **利用者の選択** (起動時/切替時) — 初回は「誰が使う？」画面で子ども or 保護者を選択。保護者を選ぶとパスワード入力（保存済みなら自動ログイン）。
-3. **完了報告** (子) — タスクの「完了報告」ボタンで状態が `申請中` に。`LINE_TOKEN` 設定時は、LINE公式アカウントを友だち追加している家族全員に通知。
-4. **承認 / 訂正依頼** (親) — ヘッダー右上の**ユーザ名チップ**をタップ → 必要に応じて「ログインユーザーを切り替え」から保護者でログイン → `申請中` の課題に「✓承認」「✏️訂正依頼」。承認で履歴に自動記録、訂正依頼で `差し戻し` に戻る。
+3. **完了報告** (子) — タスクの「完了報告」ボタンで状態が `申請中` に。通知が有効な保護者端末にプッシュ通知が届く。
+4. **承認 / 訂正依頼** (親) — ヘッダー右上の**ユーザ名チップ**をタップ → 必要に応じて「ログインユーザーを切り替え」から保護者でログイン → `申請中` の課題に「✓承認」「✏️訂正依頼」。承認で履歴に自動記録、訂正依頼で `差し戻し` に戻る。訂正依頼時は対象の子ども端末に通知。
 5. **表示ユーザーの切替** (親) — 保護者モード中は同じメニューから子どもの表示先をワンタッチ切替（保護者モードは維持）。
-6. **ポイント消費** (親) — 保護者モードで「ポイントを使う」→ 履歴に `-XXX` で記録。`LINE_TOKEN` 設定時は通知も送信。
-
-> 補足: LINE通知のリンクに `user` パラメータが含まれる場合、アプリは対象の子ども表示に切り替えてから開きます。`?k=<token>` はリンクに含めません（既存の招待済み端末で開く前提）。
+6. **ポイント消費** (親) — 保護者モードで「ポイントを使う」→ 履歴に `-XXX` で記録。保護者端末に通知。
 
 ## セキュリティ
 
-- **`ACCESS_TOKEN` ガード**: `/api` への全リクエストで `Authorization: Bearer <token>` が必須。トークンを知らない人は Worker URL を直接開いても、アプリ画面のかわりに「アクセスできません」だけが表示され、子供の名前・履歴・課題は一切取得できない
-- 招待URL `?k=<token>` は1度クリックすると `localStorage` に保存され、`history.replaceState` でアドレスバーから自動的に削除される (スクショ・ブラウザ履歴経由のリーク対策)
+- **`INVITE_CODE` ガード**: `/api` への全リクエストで `Authorization: Bearer <token>` が必須。コードを知らない人は Worker URL を直接開いても、アプリ画面のかわりに「アクセスできません」だけが表示され、子供の名前・履歴・課題は一切取得できない
+- 招待コードは 8文字 (大文字+数字)。家族には URL と別ルート (口頭/メッセージ) で渡す。1度入力すると `localStorage` に保存され、URL に含めないので画面共有・スクショ・ブラウザ履歴経由でも漏れない
 - 保護者パスワードは Worker 側のみで検証 (フロントは入力値を `localStorage` に持つだけ)
 - スプレッドシートの共有は **自分 + Service Account のみ**
 - 設定値 (パスワード・トークン・ユーザ一覧) はすべて `wrangler secret` で管理。スプレッドシートに認証情報を書かない

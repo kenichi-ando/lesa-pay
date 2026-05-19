@@ -51,6 +51,10 @@
     </div>
   </header>
 
+  <div id="pull-indicator" class="pull-indicator" aria-hidden="true">
+    <span class="pull-indicator-icon" aria-hidden="true"></span>
+  </div>
+
   <main class="app-main">
     <section class="balance-card">
       <div class="balance-label" data-i18n="balance.label"></div>
@@ -60,7 +64,6 @@
           <span class="balance-unit" data-i18n="balance.unit"></span>
         </span>
       </div>
-      <div class="balance-meta" id="balance-meta" data-i18n="balance.loading"></div>
       <button id="cashout-btn" class="balance-cashout hidden" type="button" data-i18n="cashout.button"></button>
     </section>
 
@@ -73,7 +76,9 @@
         <button id="tab-history" class="tab"           type="button" role="tab" aria-controls="panel-history" data-tab="history">
           <span class="tab-emoji">🐾</span><span class="tab-label" data-i18n="history.sectionTitle"></span>
         </button>
-        <button id="refresh-btn" class="icon-btn tab-refresh" type="button" data-i18n-attr-aria-label="header.refresh">🔄</button>
+        <button id="refresh-btn" class="icon-btn tab-refresh" type="button" data-i18n-attr-aria-label="header.refresh">
+          <span class="refresh-icon" aria-hidden="true">🔄</span>
+        </button>
       </div>
 
       <div id="panel-tasks" class="tab-panel" role="tabpanel" aria-labelledby="tab-tasks">
@@ -96,12 +101,39 @@
       <svg class="modal-mascot" width="64" height="64"><use href="#lesser-panda"/></svg>
       <h3 class="modal-title" data-i18n="parent.title"></h3>
       <p class="modal-desc" data-i18n="parent.desc"></p>
-      <input type="password" id="parent-password" class="modal-input" inputmode="numeric" autocomplete="off" />
+      <input type="password" id="parent-pin" class="modal-input" inputmode="numeric" autocomplete="off" />
       <div class="modal-actions">
         <button id="parent-cancel-btn" class="btn btn-secondary" data-i18n="parent.cancel"></button>
         <button id="parent-submit-btn" class="btn btn-primary" data-i18n="parent.login"></button>
       </div>
       <div id="parent-error" class="modal-error hidden"></div>
+    </div>
+  </div>
+
+  <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-content">
+      <svg class="modal-mascot" width="64" height="64"><use href="#lesser-panda"/></svg>
+      <h3 class="modal-title" data-i18n="settings.title"></h3>
+      <p class="modal-desc" data-i18n="settings.desc"></p>
+      <div class="settings-list">
+        <button id="settings-push-row" class="settings-row" type="button">
+          <span class="settings-row-label">
+            <span class="settings-row-emoji" aria-hidden="true">🔔</span>
+            <span class="settings-row-text" data-i18n="settings.notifications"></span>
+          </span>
+          <span class="settings-toggle" id="settings-push-toggle" role="switch" aria-checked="false"><span class="settings-toggle-thumb"></span></span>
+        </button>
+        <button id="settings-sound-row" class="settings-row" type="button">
+          <span class="settings-row-label">
+            <span class="settings-row-emoji" aria-hidden="true">🔊</span>
+            <span class="settings-row-text" data-i18n="settings.sound"></span>
+          </span>
+          <span class="settings-toggle" id="settings-sound-toggle" role="switch" aria-checked="false"><span class="settings-toggle-thumb"></span></span>
+        </button>
+      </div>
+      <div class="modal-actions">
+        <button id="settings-close-btn" class="btn btn-primary" data-i18n="settings.close"></button>
+      </div>
     </div>
   </div>
 
@@ -127,6 +159,7 @@
   <script src="js/app-i18n.js"></script>
   <script src="js/app-store.js"></script>
   <script src="js/app-utils.js"></script>
+  <script src="js/app-sound.js"></script>
   <script src="js/app-controller-data.js"></script>
   <script src="js/app-controller-actions.js"></script>
   <script src="js/app-controller.js"></script>

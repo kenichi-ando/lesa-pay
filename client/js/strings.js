@@ -24,9 +24,7 @@ window.LESSERPAY_STRINGS = {
 
   balance: {
     label: 'いまのポイント',
-    unit: 'pt',
-    loading: '読み込み中…',
-    updating: '更新中…'
+    unit: 'pt'
   },
 
   tasks: {
@@ -49,10 +47,9 @@ window.LESSERPAY_STRINGS = {
     toastRejected: '訂正依頼しました',
     expiryLabel: '期限: {date}',
     pendingCount: '{n}件 申請中',
-    rewardSubmitOnly: '提出+{submit} pt',
-    rewardCompleteOnly: '完了+{complete} pt',
-    rewardCompleteLabeled: '完了+{complete} pt',
-    rewardBoth: '提出+{submit} & 完了+{complete} pt'
+    rewardSubmitOnly: '提出 {submit} pt',
+    rewardCompleteOnly: '完了 {complete} pt',
+    rewardBoth: '提出 {submit} & 完了 {complete} pt'
   },
 
   history: {
@@ -63,11 +60,11 @@ window.LESSERPAY_STRINGS = {
 
   parent: {
     title: '保護者ログイン',
-    desc: 'パスワードを入力してください',
+    desc: '暗証番号を入力してください',
     cancel: 'キャンセル',
     login: 'ログイン',
     checking: '確認中…',
-    needPassword: 'パスワードを入力してください'
+    needPin: '暗証番号を入力してください'
   },
 
   cashout: {
@@ -90,7 +87,14 @@ window.LESSERPAY_STRINGS = {
 
   locked: {
     title: '🔒 アクセスできません',
-    desc: '招待リンクをもう一度開いてください。リンクは家族の中で共有してください。'
+    desc: '家族から教わった招待コードを入力してください。',
+    openInput: '招待コードを入力',
+    inputLabel: '招待コード ({n} 文字 / 大文字・数字)',
+    inputPlaceholder: '例: K7QXZP4M',
+    cancel: '閉じる',
+    submit: 'アプリを開く',
+    invalid: '招待コードを入力してください',
+    invalidLength: '招待コードは {n} 文字 (大文字または数字) で入力してください'
   },
 
   users: {
@@ -100,6 +104,23 @@ window.LESSERPAY_STRINGS = {
     switchedDisplayToast: '{name} に切り替えました',
     switchedLoginToast: '{name} でログインしました',
     switchedParentToast: '保護者でログインしました'
+  },
+
+  settings: {
+    open: '設定をひらく',
+    title: '⚙️ 設定',
+    desc: 'お知らせと音をきりかえできます',
+    notifications: 'お知らせ',
+    sound: '効果音',
+    close: '閉じる'
+  },
+
+  push: {
+    unsupported: 'この端末では通知に未対応です',
+    denied: '通知がブロックされています。ブラウザ設定で許可してください',
+    enabledToast: '通知を有効化しました',
+    disabledToast: '通知を無効化しました',
+    failed: '通知の設定に失敗しました'
   },
 
   time: {

@@ -29,7 +29,8 @@
         state.user = keys[0];
         store.setUser(state.user);
         state.parentMode = false;
-        state.parentPassword = null;
+        state.parentPin = null;
+        store.clearParentMode();
         data.clearDataCache();
         state.tasks = [];
         state.history = [];
@@ -63,7 +64,12 @@
         header + childItems + divider +
         '<li class="user-popover-item">' +
         '  <button class="user-popover-pick user-popover-login-switch" type="button" data-action="switch-login-user">' +
-        '    <span class="user-popover-name">' + escapeHtml(tr('users.loginSwitch')) + '</span>' +
+        '    <span class="user-popover-name">👤 ' + escapeHtml(tr('users.loginSwitch')) + '</span>' +
+        '  </button>' +
+        '</li>' +
+        '<li class="user-popover-item">' +
+        '  <button class="user-popover-pick user-popover-settings" type="button" data-action="open-settings">' +
+        '    <span class="user-popover-name">⚙️ ' + escapeHtml(tr('settings.open')) + '</span>' +
         '  </button>' +
         '</li>';
 
@@ -74,6 +80,11 @@
       });
       const loginSwitchBtn = els.userPopoverList.querySelector('[data-action="switch-login-user"]');
       if (loginSwitchBtn) loginSwitchBtn.addEventListener('click', openLoginUserSelection);
+      const settingsBtn = els.userPopoverList.querySelector('[data-action="open-settings"]');
+      if (settingsBtn) settingsBtn.addEventListener('click', function () {
+        closeUserPopover();
+        if (deps.openSettings) deps.openSettings();
+      });
     }
 
     function closeUserPopover() {
@@ -98,7 +109,7 @@
         returnState: canClose ? {
           user: state.user,
           parentMode: state.parentMode,
-          parentPassword: state.parentPassword
+          parentPin: state.parentPin
         } : null
       });
     }
@@ -111,15 +122,19 @@
       closeUserPopover();
       if (!opts.keepSession) {
         state.parentMode = false;
-        state.parentPassword = null;
+        state.parentPin = null;
+        store.clearParentMode();
       }
+      const currentSelection = state.parentMode ? '__parent__' : state.user;
       els.userSelectList.innerHTML = state.serverUsers.map(function (_ref2) {
         const key = _ref2.key;
         const label = _ref2.label;
-        return '<button class="user-select-btn" type="button" data-user-select="' + escapeHtml(key) + '">' +
+        const currentClass = key === currentSelection ? ' is-current' : '';
+        return '<button class="user-select-btn' + currentClass + '" type="button" data-user-select="' + escapeHtml(key) + '">' +
+          '<span class="user-select-icon" aria-hidden="true">🐾</span>' +
           '<span>' + escapeHtml(label) + '</span></button>';
       }).join('') +
-      '<button class="user-select-btn is-parent" type="button" data-user-select="__parent__">' +
+      '<button class="user-select-btn is-parent' + (currentSelection === '__parent__' ? ' is-current' : '') + '" type="button" data-user-select="__parent__">' +
       '<span class="user-select-key" aria-hidden="true">🔑</span>' +
       '<span>' + escapeHtml(tr('userSelect.parent')) + '</span></button>';
       els.userSelectList.querySelectorAll('[data-user-select]').forEach(function (btn) {
@@ -143,7 +158,7 @@
       if (state.selectionReturnState) {
         state.user = state.selectionReturnState.user;
         state.parentMode = state.selectionReturnState.parentMode;
-        state.parentPassword = state.selectionReturnState.parentPassword;
+        state.parentPin = state.selectionReturnState.parentPin;
         store.setUser(state.user);
       }
       hideUserSelection();
@@ -167,23 +182,32 @@
         openParentModal();
         return;
       }
-      await switchUser(selection, { silent: !shouldToast, toastKey: 'users.switchedLoginToast' });
+      await switchUser(selection, {
+        silent: !shouldToast,
+        toastKey: 'users.switchedLoginToast',
+        forceExitParentMode: true
+      });
       hideUserSelection();
     }
 
     async function switchUser(key, options) {
       const opts = options || {};
-      if (!key || key === state.user) {
+      const forceExitParentMode = !!opts.forceExitParentMode;
+      const sameUser = key === state.user;
+      if (!key || (sameUser && !(forceExitParentMode && state.parentMode))) {
         closeUserPopover();
         return;
       }
       closeUserPopover();
-      const keepParentMode = !!opts.keepParentMode && state.parentMode && !!state.parentPassword;
-      state.user = key;
-      store.setUser(key);
+      const keepParentMode = !!opts.keepParentMode && state.parentMode && !!state.parentPin;
+      if (!sameUser) {
+        state.user = key;
+        store.setUser(key);
+      }
       if (!keepParentMode) {
         state.parentMode = false;
-        state.parentPassword = null;
+        state.parentPin = null;
+        store.clearParentMode();
       }
       data.clearDataCache();
       state.tasks = [];
@@ -196,33 +220,35 @@
     }
 
     function openParentModal() {
-      els.parentPassword.value = '';
+      els.parentPin.value = '';
       els.parentError.classList.add('hidden');
       els.parentModal.classList.remove('hidden');
-      setTimeout(function () { els.parentPassword.focus(); }, 50);
+      setTimeout(function () { els.parentPin.focus(); }, 50);
     }
 
     async function tryAutoLoginParent() {
       if (state.parentMode) return true;
-      const savedPw = store.getParentPw();
-      if (!savedPw) return false;
+      const savedPin = store.getParentPin();
+      if (!savedPin) return false;
       try {
-        await data.api('verifyPassword', { password: savedPw });
-        state.parentPassword = savedPw;
+        await data.api('verifyPin', { pin: savedPin });
+        state.parentPin = savedPin;
         state.parentMode = true;
+        store.setParentMode(true);
         runtime.render();
         return true;
       } catch (_err) {
-        store.clearParentPw();
-        state.parentPassword = null;
+        store.clearParentPin();
+        store.clearParentMode();
+        state.parentPin = null;
         return false;
       }
     }
 
     async function submitParentLogin() {
-      const pw = els.parentPassword.value;
-      if (!pw) {
-        els.parentError.textContent = tr('parent.needPassword');
+      const pin = els.parentPin.value;
+      if (!pin) {
+        els.parentError.textContent = tr('parent.needPin');
         els.parentError.classList.remove('hidden');
         return;
       }
@@ -230,10 +256,11 @@
       const original = els.parentSubmit.textContent;
       els.parentSubmit.textContent = tr('parent.checking');
       try {
-        await data.api('verifyPassword', { password: pw });
-        state.parentPassword = pw;
+        await data.api('verifyPin', { pin: pin });
+        state.parentPin = pin;
         state.parentMode = true;
-        store.setParentPw(pw);
+        store.setParentPin(pin);
+        store.setParentMode(true);
         els.parentModal.classList.add('hidden');
         hideUserSelection();
         runtime.render();
@@ -241,7 +268,7 @@
           actions.toast(tr('users.switchedParentToast'), 'success');
         }
       } catch (err) {
-        state.parentPassword = null;
+        state.parentPin = null;
         els.parentError.textContent = err.message;
         els.parentError.classList.remove('hidden');
       } finally {
@@ -291,7 +318,12 @@
       submitCashout: actions.submitCashout,
       loadData: data.loadData,
       bootstrap: data.bootstrap,
-      onTaskAction: actions.onTaskAction
+      onTaskAction: actions.onTaskAction,
+      enablePush: data.enablePush,
+      disablePush: data.disablePush,
+      isPushEnabled: data.isPushEnabled,
+      isPushSupported: data.isPushSupported,
+      pushPermission: data.pushPermission
     };
   }
 

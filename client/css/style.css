@@ -179,6 +179,8 @@ body {
   cursor: default;
   font-family: inherit;
   transition: background 0.15s, transform 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .user-label::after {
@@ -419,14 +421,20 @@ body {
   transform: scale(0.97);
 }
 
-.user-select-key {
+.user-select-key,
+.user-select-icon {
   font-size: 20px;
   flex-shrink: 0;
 }
 
 .user-select-btn.is-parent {
   background: linear-gradient(135deg, #fff4e6 0%, #ffe9d0 100%);
-  border-color: var(--color-primary-light);
+  border-color: var(--color-border);
+}
+
+.user-select-btn.is-current {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(182, 86, 45, 0.16), var(--shadow-md);
 }
 
 /* ---------------- Main ---------------- */
@@ -513,36 +521,9 @@ body {
   color: var(--color-primary);
 }
 
-.balance-meta {
-  font-size: 12px;
-  color: var(--color-text-light);
-  font-weight: 500;
-}
-
 /* ---------------- Section headings ---------------- */
 .content-section {
   margin-bottom: 28px;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.section-title {
-  font-size: 17px;
-  font-weight: 800;
-  color: var(--color-primary-dark);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding-left: 4px;
-}
-
-.section-emoji {
-  font-size: 20px;
 }
 
 .icon-btn {
@@ -776,10 +757,10 @@ body {
 }
 
 .task-btn.reject-btn {
-  background: linear-gradient(135deg, #b8b8b8 0%, #8c8c8c 100%);
+  background: linear-gradient(135deg, var(--color-warning) 0%, #d48a1e 100%);
   padding: 8px 14px;
   font-size: 12px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 6px rgba(232, 162, 58, 0.4);
 }
 
 .task-btn.resubmit-btn {
@@ -800,16 +781,18 @@ body {
 }
 
 .task-status-badge {
-  font-size: 12px;
+  display: inline-block;
+  font-size: 13px;
   font-weight: 800;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
+  padding: 10px 18px;
+  border-radius: 14px;
   white-space: nowrap;
 }
 
 .status-applied .task-status-badge {
-  background: var(--color-warning);
-  color: white;
+  background: transparent;
+  color: var(--color-warning);
+  border: 1.5px solid var(--color-warning);
 }
 
 .status-approved .task-status-badge {
@@ -1125,7 +1108,7 @@ body {
   border-radius: 18px;
   font-size: 14px;
   font-weight: 700;
-  z-index: 2000;
+  z-index: 4000;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   border: 3px solid rgba(255, 255, 255, 0.3);
   animation: toast-in 0.3s ease;
@@ -1152,6 +1135,154 @@ body {
 /* ---------------- Utilities ---------------- */
 .hidden { display: none !important; }
 
+/* ---------------- Settings rows ---------------- */
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, var(--color-cream) 0%, #fff 100%);
+  border: 2px solid var(--color-border);
+  border-radius: 16px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.settings-row:hover {
+  transform: translateY(-1px);
+  border-color: var(--color-primary-light);
+  box-shadow: var(--shadow-sm);
+}
+
+.settings-row:active {
+  transform: scale(0.98);
+}
+
+.settings-row-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.settings-row-emoji {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.settings-toggle {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 28px;
+  border-radius: 999px;
+  background: #d8c8b0;
+  transition: background 0.25s;
+  flex-shrink: 0;
+}
+
+.settings-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: left 0.25s cubic-bezier(.6, 1.6, .4, 1);
+}
+
+.settings-toggle.is-on {
+  background: linear-gradient(135deg, var(--color-bamboo) 0%, var(--color-bamboo-dark) 100%);
+}
+
+.settings-toggle.is-on .settings-toggle-thumb {
+  left: 23px;
+}
+
+/* ---------------- Pull-to-refresh indicator ---------------- */
+.pull-indicator {
+  position: fixed;
+  top: -56px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  z-index: 200;
+  pointer-events: none;
+  transition: top 0.2s ease, opacity 0.2s ease;
+  opacity: 0;
+  border: 2px solid var(--color-border);
+}
+
+.pull-indicator.is-visible {
+  opacity: 1;
+}
+
+.pull-indicator.is-loading {
+  top: 16px !important;
+  opacity: 1;
+}
+
+.pull-indicator.is-loading .pull-indicator-icon {
+  animation: spin 0.9s linear infinite;
+}
+
+.pull-indicator-icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  box-sizing: border-box;
+  transition: transform 0.2s ease;
+}
+
+/* ---------------- Refresh button spin ---------------- */
+.tab-refresh .refresh-icon {
+  display: inline-block;
+  font-size: 16px;
+  line-height: 1;
+  transition: transform 0.4s cubic-bezier(.5, 1.6, .4, 1);
+}
+
+.tab-refresh:hover .refresh-icon {
+  transform: rotate(60deg);
+}
+
+.tab-refresh.is-loading {
+  opacity: 0.6;
+}
+
+.tab-refresh:active {
+  transform: none;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 /* ---------------- Animations ---------------- */
 @keyframes panda-bounce {
   0%, 100% { transform: translateY(0) rotate(-3deg); }
@@ -1169,11 +1300,6 @@ body {
   50%      { transform: scale(1.3) rotate(180deg); opacity: 0.8; }
 }
 
-@keyframes pulse-warm {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(232, 162, 58, 0.7); }
-  50%      { box-shadow: 0 0 0 8px rgba(232, 162, 58, 0); }
-}
-
 @keyframes shine {
   0%, 100% { transform: translate(-50%, -50%); }
   50%      { transform: translate(50%, 50%); }
@@ -1182,6 +1308,179 @@ body {
 @keyframes toast-in {
   from { opacity: 0; transform: translate(-50%, 20px); }
   to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* Tap feedback for any clickable button-like control. */
+button:not(:disabled):active,
+.user-select-btn:not(:disabled):active,
+.user-popover-pick:not(:disabled):active {
+  transform: scale(0.96);
+  transition: transform 60ms ease-out;
+}
+
+/* Flash a task row when it changes state (apply / approve / reject). */
+@keyframes row-flash {
+  0%   { background-color: rgba(255, 220, 130, 0.0); }
+  20%  { background-color: rgba(255, 220, 130, 0.55); }
+  100% { background-color: rgba(255, 220, 130, 0.0); }
+}
+.task-item.is-flash {
+  animation: row-flash 900ms ease-out;
+}
+
+/* Bigger pop on the balance number when it changes. */
+@keyframes balance-pop {
+  0%   { transform: scale(1) rotate(0deg); filter: drop-shadow(0 0 0 rgba(255, 215, 100, 0)); }
+  20%  { transform: scale(1.45) rotate(-8deg); filter: drop-shadow(0 0 24px rgba(255, 215, 100, 0.85)); }
+  45%  { transform: scale(1.55) rotate(8deg); filter: drop-shadow(0 0 32px rgba(255, 200, 80, 1)); }
+  70%  { transform: scale(0.92) rotate(-2deg); }
+  100% { transform: scale(1) rotate(0deg); filter: drop-shadow(2px 2px 0 rgba(255, 255, 255, 0.7)); }
+}
+.balance-number.is-pop {
+  display: inline-block;
+  animation: balance-pop 800ms cubic-bezier(.22, 1.6, .42, 1);
+  transform-origin: center;
+}
+
+/* Card-wide glow when balance pops */
+@keyframes card-glow {
+  0%   { box-shadow: 0 6px 20px rgba(182, 86, 45, 0.18), inset 0 -4px 12px rgba(255, 179, 193, 0.18), 0 0 0 0 rgba(255, 200, 80, 0); }
+  40%  { box-shadow: 0 8px 28px rgba(182, 86, 45, 0.25), inset 0 -4px 12px rgba(255, 179, 193, 0.18), 0 0 36px 8px rgba(255, 200, 80, 0.65); }
+  100% { box-shadow: 0 6px 20px rgba(182, 86, 45, 0.18), inset 0 -4px 12px rgba(255, 179, 193, 0.18), 0 0 0 0 rgba(255, 200, 80, 0); }
+}
+.balance-card.is-glow {
+  animation: card-glow 900ms ease-out;
+}
+
+/* Confetti / sparkle burst overlay. */
+.confetti-burst {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1000;
+  width: 0;
+  height: 0;
+}
+.confetti-burst .confetti-piece {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: 28px;
+  opacity: 0;
+  transform: translate(0, 0) scale(0.4) rotate(0deg);
+  animation: confetti-fly 1500ms cubic-bezier(.16, .9, .25, 1) forwards;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.18));
+}
+@keyframes confetti-fly {
+  0%   { opacity: 0; transform: translate(0, 0) scale(0.4) rotate(0deg); }
+  10%  { opacity: 1; transform: translate(0, 0) scale(1.6) rotate(0deg); }
+  60%  { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform:
+      translate(var(--cx, 0px), var(--cy, -80px))
+      scale(0.8) rotate(var(--cr, 720deg));
+  }
+}
+
+/* Header logo — extra "yay" pop on approve. */
+.app-logo.is-cheer {
+  animation: logo-cheer 1100ms cubic-bezier(.22, 1.6, .36, 1);
+}
+
+@keyframes logo-cheer {
+  0%   { transform: scale(1) rotate(0deg); }
+  20%  { transform: scale(1.5) rotate(-25deg); }
+  40%  { transform: scale(1.6) rotate(20deg); }
+  60%  { transform: scale(1.4) rotate(-15deg); }
+  80%  { transform: scale(1.2) rotate(8deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+/* Tab activation: bouncy glow */
+.tab.is-active .tab-emoji {
+  animation: tab-emoji-bounce 0.5s cubic-bezier(.22, 1.6, .36, 1);
+  display: inline-block;
+}
+
+@keyframes tab-emoji-bounce {
+  0%   { transform: scale(1) rotate(0deg); }
+  35%  { transform: scale(1.4) rotate(-12deg); }
+  65%  { transform: scale(1.25) rotate(8deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+/* Pop on entry */
+.task-item {
+  animation: task-fade-in 0.4s cubic-bezier(.22, 1.4, .42, 1) backwards;
+}
+
+@keyframes task-fade-in {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Modal entry - bigger pop */
+.modal:not(.hidden) .modal-content {
+  animation: modal-pop 0.5s cubic-bezier(.22, 1.6, .36, 1);
+}
+
+@keyframes modal-pop {
+  0%   { opacity: 0; transform: scale(0.6) translateY(40px); }
+  60%  { opacity: 1; transform: scale(1.04) translateY(-4px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.modal:not(.hidden) {
+  animation: modal-backdrop 0.3s ease forwards;
+}
+
+@keyframes modal-backdrop {
+  from { background: rgba(58, 36, 24, 0); backdrop-filter: blur(0); }
+  to   { background: rgba(58, 36, 24, 0.55); backdrop-filter: blur(4px); }
+}
+
+/* Toast entry - bouncier */
+.toast {
+  animation: toast-pop 0.45s cubic-bezier(.22, 1.6, .36, 1);
+}
+
+@keyframes toast-pop {
+  0%   { opacity: 0; transform: translate(-50%, 32px) scale(0.7); }
+  60%  { opacity: 1; transform: translate(-50%, -4px) scale(1.05); }
+  100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+/* User-popover entry — bigger drop with bounce */
+.user-popover {
+  animation: popover-drop 0.35s cubic-bezier(.22, 1.6, .36, 1);
+  transform-origin: top right;
+}
+
+@keyframes popover-drop {
+  0%   { opacity: 0; transform: scale(0.7) translateY(-10px); }
+  60%  { opacity: 1; transform: scale(1.04) translateY(2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Big task button press */
+.task-btn:active {
+  animation: btn-squish 0.3s ease;
+}
+
+@keyframes btn-squish {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(0.9, 1.1); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .confetti-burst { display: none; }
 }
 
 /* ---------------- Responsive ---------------- */
@@ -1203,4 +1502,7 @@ body {
 }
 .locked-mascot { display: block; margin: 0 auto 12px; }
 .locked-title  { margin: 0 0 8px; font-size: 22px; color: #7a3618; }
-.locked-desc   { margin: 0; color: #6b4527; line-height: 1.6; }
+.locked-desc   { margin: 0 0 16px; color: #6b4527; line-height: 1.6; }
+.locked-panel .btn {
+  width: 100%;
+}

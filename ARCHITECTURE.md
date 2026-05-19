@@ -15,19 +15,18 @@ structured and how to extend it safely" — in English, alongside the source.
 │  - Render only     │   {ok, ...}       │  - Auth + Validation │
 │  - State in        │                   │  - All business logic│
 │    localStorage    │                   │  - Sheets API I/O    │
-└────────────────────┘                   │  - LINE notifications│
-        ▲                                └──────────────────────┘
-        │  Worker also serves              │          │
-        │  static assets from client/      ▼          ▼
-        │                          ┌─────────────┐  ┌──────────────┐
-        │                          │  Google     │  │  LINE        │
-        │                          │  Spreadsheet│  │  Messaging   │
-        │                          │  per-child  │  │  API         │
-        │                          │  (data only)│  │  (broadcast) │
-        │                          └─────────────┘  └──────────────┘
-        │                                                  │
-        │            tap notification deep link            │
-        └──────────────────────────────────────────────────┘
+│  - Service Worker  │                   │  - Web Push (VAPID)  │
+│    for Web Push    │                   │                      │
+└────────────────────┘                   └──────────────────────┘
+        ▲                                  │           │
+        │  Worker also serves              ▼           ▼
+        │  static assets from client/   ┌─────────────┐  ┌──────────────┐
+        │                               │  Google     │  │  Web Push    │
+        ▲                               │  Spreadsheet│  │  endpoints   │
+        │  encrypted push payload       │  per-child  │  │  (FCM / APNs │
+        │  (RFC 8291 aes128gcm)         │  + push     │  │   /Mozilla)  │
+        └───────────────────────────────│  subs       │  └──────────────┘
+                                        └─────────────┘
 ```
 
 - The browser is **untrusted**. A child can open DevTools and replay any HTTP request.
@@ -50,7 +49,8 @@ lesser-pay/
 │   ├── config.ts          # wrangler secrets → Config object
 │   ├── schema.ts          # Sheet schema (TASK_SCHEMA, STATUS, etc.)
 │   ├── messages.ts        # MSG catalog + fmt() template helper
-│   ├── notify.ts          # LINE Messaging API
+│   ├── notify.ts          # Notification fan-out (delegates to push.ts)
+│   ├── push.ts            # Web Push: VAPID JWT + RFC 8291 aes128gcm encryption
 │   ├── env.ts             # Env bindings interface
 │   └── util.ts            # HttpError, encoding, date helpers
 ├── client/                # Served by the same Worker via assets binding
@@ -58,6 +58,7 @@ lesser-pay/
 │   ├── css/style.css
 │   ├── icons/*            # PNG (favicons/app icons) + optional SVG assets
 │   ├── manifest.webmanifest
+│   ├── sw.js              # Service Worker: push handler + badge counter
 │   └── js/
 │       ├── config.js                  # localStorage keys (no personal data)
 │       ├── strings.js                 # All user-facing UI strings (i18n)
@@ -95,7 +96,7 @@ These are non-negotiable rules. Breaking them tends to introduce hard-to-spot bu
 export const ACTIONS: Record<string, ActionDef> = {
   myNewAction: {
     requireUser: true,
-    handler: async (req, env, origin) =>
+    handler: async (req, env) =>
       handleMyNewAction(env, req.user as string, req.foo),
   },
   // ...
@@ -117,8 +118,10 @@ await api('myNewAction', { foo: 42 });
 | Key                     | Purpose |
 | ----------------------- | ------- |
 | `lesserpay_user`          | Currently selected sheet-name suffix (a key into the `USERS` roster) |
-| `lesserpay_parent_pw`     | Last successful parent password — used for parent-mode deep-link auto-login |
-| `lesserpay_access_token`  | Shared invitation token, captured once from `?k=<token>` and sent on every `/api` call as `Authorization: Bearer …`. Cleared on 401 (token rotated server-side). |
+| `lesserpay_parent_pw`     | Last successful parent password — kept so a returning device can re-enter parent mode without retyping it |
+| `lesserpay_parent_mode`   | `"1"` while the current session is acting as a parent device |
+| `lesserpay_access_token`  | Shared 8-char invitation code, typed once into the locked screen and sent on every `/api` call as `Authorization: Bearer …`. Cleared on 401 (code rotated server-side). |
+| `lesserpay_push_prompt_dismissed` | `"1"` once the user has dismissed the "enable notifications" prompt for this device |
 
 Tasks and history are *not* cached across reloads. The user roster itself is
 *not* persisted in the browser — it is fetched from the Worker via `getConfig`
@@ -129,9 +132,10 @@ calls a relative `/api`.
 
 ### 4. Side effects (notifications, etc.) belong on the server.
 
-LINE Broadcast is sent from `server/notify.ts`. The frontend must never
-call external APIs directly. If a future feature needs a webhook, add an
-action and let the Worker make the outbound request.
+Web Push fan-out is invoked from `server/notify.ts` (which delegates to
+`push.ts`). The frontend must never call external APIs directly. If a future
+feature needs a webhook, add an action and let the Worker make the outbound
+request.
 
 ### 5. Concurrency is handled with optimistic CAS, not a lock.
 
@@ -156,8 +160,8 @@ origin. This is a deliberate choice that buys us several niceties:
 ## Schema
 
 Source of truth is `server/schema.ts`. Runtime config (passwords, roster,
-LINE token) lives in `wrangler secret`-managed env vars and is read by
-`server/config.ts`.
+VAPID keys) lives in `wrangler secret`-managed env vars and is read by
+`server/config.ts` / `server/push.ts`.
 
 The Worker reads sheet ranges from `A2:` down, so **row 1 (the header) is
 ignored** — label it however you want in the spreadsheet UI. The constants
@@ -172,7 +176,7 @@ are derived from it.
 | Index | Key                | Notes |
 | ----: | ------------------ | ----- |
 | 0     | `ID`               | Auto-generated on read if blank (`T<unix>_<rand>`) |
-| 1     | `STATUS`           | `STATUS.PENDING` / `APPLIED` / `REJECTED` / `APPROVED`. Blank = `PENDING`. |
+| 1     | `STATUS`           | `STATUS.PENDING` / `SUBMITTED` / `REJECTED` / `APPROVED`. Blank = `PENDING`. |
 | 2     | `CATEGORY`         | Used as the group heading in the UI. Empty rows fall under `tasks.otherGroup`. |
 | 3     | `TITLE`            | Required |
 | 4     | `SUBMIT_REWARD`    | Granted on the *first* submit only |
@@ -194,36 +198,34 @@ automatically.
 ### Runtime config (wrangler secrets)
 
 All runtime knobs are wrangler secrets, read from `env` by `fetchConfig()`.
-There is no spreadsheet round-trip on parent actions — `checkPassword()` is
+There is no spreadsheet round-trip on parent actions — `checkPin()` is
 synchronous. Changes require `wrangler secret put …` + `npm run deploy`.
 
 | Secret             | Required | Notes |
 | ------------------ | :------: | ----- |
 | `GOOGLE_CLIENT_EMAIL` | ✅   | Service Account email for Sheets API. |
 | `GOOGLE_PRIVATE_KEY`  | ✅   | Service Account private key (PEM). |
-| `SHEET_ID`            | ✅   | Target spreadsheet (one per family). |
-| `ACCESS_TOKEN`        | ✅   | Shared invitation token gating `/api`. Verified with `constantTimeEqual`. |
-| `PARENT_PASSWORD`     | ✅   | Parent-mode password. Verified on approve / reject / cashout. |
-| `USERS`               | ✅   | JSON array of `{key, label?}`. `key` is the sheet-name suffix (`Tasks_<key>` / `History_<key>`); `label` is an optional display name (defaults to `key`). |
-| `LINE_TOKEN`          | ⬜   | LINE Messaging API channel access token. Notifications skipped if unset. |
+| `GOOGLE_SHEET_ID`            | ✅   | Target spreadsheet (one per family). |
+| `INVITE_CODE`         | ✅   | Shared invitation code gating `/api`. Verified with `constantTimeEqual`. |
+| `PARENT_PIN`          | ✅   | Parent-mode PIN. Verified on approve / reject / cashout. |
+| `USERS`               | ✅   | Comma-separated `key:label` pairs. `key` is the sheet-name suffix (`Tasks_<key>` / `History_<key>`); `label` is an optional display name (defaults to `key`). |
+| `PUSH_VAPID_PUBLIC_KEY`  | ⬜ | VAPID public key (P-256 uncompressed point, base64url). Push is skipped if unset. |
+| `PUSH_VAPID_PRIVATE_KEY` | ⬜ | VAPID private key (`d` JWK component, base64url). Required if public key is set. |
+| `PUSH_SUBJECT`           | ⬜ | Contact identifier in the VAPID JWT `sub` claim. `mailto:you@yourdomain.com` style. APNs rejects clearly fake values. |
 
 `USERS` example:
 
-```json
-[{"key":"Light"},{"key":"Tiara"}]
+```
+Light:ライト, Tiara:ティアラ
 ```
 
 The parsed list is cached per Worker isolate, so successive requests don't
-re-parse the JSON.
-
-There is no `APP_URL` secret: deep-link URLs in LINE notifications are built
-from the request's own origin (`new URL(req.url).origin`), which is
-trustworthy on Cloudflare.
+re-parse the secret on every call.
 
 ### Status values
 
 ```ts
-STATUS = { PENDING: 'Pending', APPLIED: 'Applied', REJECTED: 'Rejected', APPROVED: 'Approved' }
+STATUS = { PENDING: 'Pending', SUBMITTED: 'Submitted', REJECTED: 'Rejected', APPROVED: 'Approved' }
 ```
 
 Authoritative copy is in `server/schema.ts`. The frontend `STATUS` is empty
@@ -234,15 +236,86 @@ propagates after deploy without a matching client change.
 State transitions:
 
 ```
-PENDING ─[applyTask, +submitReward]─▶ APPLIED ─[approveTask, +completeReward]─▶ APPROVED
+PENDING ─[applyTask, +submitReward]─▶ SUBMITTED ─[approveTask, +completeReward]─▶ APPROVED
                                          │
                                          └─[rejectTask]─▶ REJECTED
                                                             │
-                                                            └─[applyTask, no submit reward]─▶ APPLIED
+                                                            └─[applyTask, no submit reward]─▶ SUBMITTED
 ```
 
 Approved is terminal. Rejecting an already-approved task is forbidden (avoids
 double payout).
+
+## Web Push
+
+Push is the only notification channel. There is no email/LINE/SMS fallback.
+
+### Subscription lifecycle
+
+1. The browser registers `client/sw.js` (`navigator.serviceWorker.register`).
+2. User taps the bell button — `Notification.requestPermission()` then
+   `pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })`.
+3. The frontend POSTs `subscribePush` with the `endpoint` / `p256dh` / `auth`
+   to the Worker, which writes them to the `PushSubscriptions` sheet.
+4. To send a notification the Worker iterates rows that match the target role
+   (`child` / `parent`), encrypts the payload per RFC 8291, signs a per-endpoint
+   VAPID JWT (`ES256`, `aud = origin of endpoint`, ~1h expiry), and POSTs to
+   the endpoint with `Authorization: vapid t=…, k=…` and
+   `Content-Encoding: aes128gcm`.
+5. 404 / 410 responses prune the row automatically. Other 4xx/5xx are logged
+   and skipped — never break the user-visible flow.
+
+### Payload encryption (RFC 8291)
+
+`encryptPayload` in `push.ts` does the standard dance:
+
+```
+ephemeral ECDH P-256 keypair (AS) ↔ subscription public key (UA)
+  → ecdh_secret (32 bytes)
+prk_key  = HMAC-SHA-256(auth_secret, ecdh_secret)
+ikm      = HKDF-Expand(prk_key, "WebPush: info\0" || ua_pub || as_pub, 32)
+salt     = random(16)
+prk      = HMAC-SHA-256(salt, ikm)
+cek      = HKDF-Expand(prk, "Content-Encoding: aes128gcm\0", 16)
+nonce    = HKDF-Expand(prk, "Content-Encoding: nonce\0",     12)
+ciphertext = AES-128-GCM(cek, nonce, plaintext || 0x02)
+body = salt || rs(=4096, BE u32) || idlen(=65) || as_pub || ciphertext
+```
+
+We send a single record (no chunking). Plaintext is `JSON.stringify({title,
+body})`; the SW reads both fields. Without payload encryption, iOS / APNs
+silently drop the push (no `push` event, no badge update) — Chrome/FCM still
+fires the event with empty data, which is what made this regression invisible
+in PC testing for a while.
+
+### Service Worker
+
+`client/sw.js` is intentionally minimal:
+
+- `push` handler decodes the JSON payload, calls `showNotification(title,
+  {body, icon, badge, tag, renotify})`, and increments a badge counter
+  persisted in IndexedDB (DB `lesserpay-badge`, store `kv`, key `count`).
+  IndexedDB is required because SW global state is not durable and the
+  Badging API has no `getAppBadge()`.
+- `message` handler accepts `{type: 'clearBadge'}` from the page to reset the
+  counter and call `navigator.clearAppBadge()`.
+- `notificationclick` focuses an existing client window (or opens `/`),
+  clearing the badge as a side effect.
+
+`client/js/app.js` posts `clearBadge` whenever the document becomes visible,
+giving "open the app → badge disappears" UX.
+
+### `PushSubscriptions` sheet
+
+Auto-created on first send. Columns: `endpoint, p256dh, auth, user, role,
+createdAt, updatedAt`. Capped at `MAX_PUSH_SUBSCRIPTIONS` (50) rows; rows
+that 404/410 are cleared (cells emptied) but the row index remains so the
+range geometry stays stable.
+
+Re-keying VAPID requires deleting old rows: subscriptions remember the
+public key they were created with, and the push services reject sends
+signed by a mismatched key (`VapidPkHashMismatch` / `VAPID public key
+mismatch`).
 
 ## i18n
 
@@ -272,17 +345,21 @@ columns in whatever language they prefer without affecting behaviour.
 
 - `index.ts` — `fetch` handler. Routes `POST /api` to `dispatch()`, everything
   else to the static `ASSETS` binding. Catches `HttpError` and converts to JSON.
-- `actions.ts` — `ACTIONS` table and the seven handlers
-  (`getConfig`, `getData`, `verifyPassword`, `applyTask`, `approveTask`,
-  `rejectTask`, `cashout`).
+- `actions.ts` — `ACTIONS` table and the handlers
+  (`getConfig`, `getData`, `verifyPin`, `applyTask`, `approveTask`,
+  `rejectTask`, `cashout`, `subscribePush`, `unsubscribePush`).
 - `api.ts` — Sheets API + JWT-based access token issuance via Web Crypto
   (`crypto.subtle.sign` with RS256). Also `casTaskStatus` (the optimistic-lock
   primitive) and the row shaping for the frontend.
-- `config.ts` — `fetchConfig` reads runtime config (`PARENT_PASSWORD`, `USERS`)
+- `config.ts` — `fetchConfig` reads runtime config (`PARENT_PIN`, `USERS`)
   from `env`. Synchronous; the parsed `USERS` JSON is cached per isolate.
-  `checkPassword` is the only auth gate.
+  `checkPin` is the only auth gate.
 - `schema.ts` — column indexes, status values, sheet name prefixes.
-- `notify.ts` — LINE broadcast (best effort; never breaks the user flow).
+- `notify.ts` — Notification fan-out (delegates to `push.ts`). Best effort;
+  never breaks the user flow.
+- `push.ts` — Web Push: VAPID JWT signing, RFC 8291 (aes128gcm) payload
+  encryption, subscription storage in the `PushSubscriptions` sheet, automatic
+  pruning of expired endpoints (404/410).
 - `messages.ts` — server-side `MSG` catalog and `fmt()` helper.
 - `util.ts` — `HttpError`, `constantTimeEqual`, b64url, date helpers,
   `isExpired` (Asia/Tokyo).
@@ -312,13 +389,13 @@ columns in whatever language they prefer without affecting behaviour.
    ```ts
    newAction: {
      requireUser: true,
-     handler: async (req, env, origin) =>
+     handler: async (req, env) =>
        handleNewAction(env, req.user as string, req.foo),
    },
    ```
-   The dispatcher in `index.ts` runs the `ACCESS_TOKEN` check before any
+   The dispatcher in `index.ts` runs the `INVITE_CODE` check before any
    handler, so every new action is automatically gated — no per-action work
-   needed for that. Parent-only actions additionally call `checkPassword(env,
+   needed for that. Parent-only actions additionally call `checkPin(env,
    req.password)` inside the handler (see `approveTask` / `cashout`).
 2. **Worker** — implement `handleNewAction(env, user, foo)`. Use
    `casTaskStatus` for any task-row state transition; throw `HttpError` on
@@ -341,8 +418,8 @@ from `wrangler secret put` are available locally too. There is no separate
 preview server for the SPA.
 
 The Worker hits the *real* Sheets API regardless of where it runs — write to a
-separate "dev" spreadsheet (a different `SHEET_ID` secret) if you need to test
-destructive flows. Switch via `wrangler secret put SHEET_ID` in a dev
+separate "dev" spreadsheet (a different `GOOGLE_SHEET_ID` secret) if you need to test
+destructive flows. Switch via `wrangler secret put GOOGLE_SHEET_ID` in a dev
 environment, or use `wrangler.jsonc` env stanzas if you set up multiple.
 
 ## Deploy
@@ -363,8 +440,10 @@ API are all updated atomically.
 
 Set once with `wrangler secret put <NAME>`. See the table in the [Runtime
 config](#runtime-config-wrangler-secrets) section above for the full list.
-Required at minimum: `GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `SHEET_ID`,
-`ACCESS_TOKEN`, `PARENT_PASSWORD`, `USERS`. `LINE_TOKEN` is optional.
+Required at minimum: `GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `GOOGLE_SHEET_ID`,
+`INVITE_CODE`, `PARENT_PIN`, `USERS`. `PUSH_VAPID_PUBLIC_KEY` /
+`PUSH_VAPID_PRIVATE_KEY` / `PUSH_SUBJECT` are optional (omit them and Web
+Push is silently disabled).
 
 The Service Account must be granted **Editor** access to the spreadsheet (share
 the sheet with `client_email`).
@@ -386,34 +465,43 @@ because the Service Account itself owns its delegation.
 
 ## Security model (and its limits)
 
-- **`ACCESS_TOKEN` gates every `/api` call.** The Worker rejects any request
+- **`INVITE_CODE` gates every `/api` call.** The Worker rejects any request
   whose `Authorization: Bearer <token>` header doesn't match the secret
-  (constant-time compare). Without it, a stranger who learns the Worker URL
-  sees only the locked screen — no `getData` / `applyTask` is reachable.
-- The token is captured once via the invitation URL `?k=<token>`, stored in
-  `localStorage`, and stripped from the address bar via `history.replaceState`
-  so it doesn't leak through screenshots / browser history. LINE notification
-  links intentionally do *not* embed the token because LINE history is durable
-  and easily forwarded; family members open links from a previously invited
-  device.
-- `approveTask` / `rejectTask` / `cashout` additionally require `PARENT_PASSWORD`
-  verified by the Worker (`checkPassword`, constant-time compare).
-- The frontend stores the verified password in `localStorage` after a
+  (constant-time compare). The code is 8 chars (A–Z + 0–9, ~40 bits of
+  entropy). Without it, a stranger who learns the Worker URL sees only the
+  locked screen — no `getData` / `applyTask` is reachable.
+- The code is typed once into the locked screen (no URL parameter), stored in
+  `localStorage`, and never appears in the URL — so screenshots, browser
+  history, and screen-share streams don't leak it. Push notifications carry
+  only the title and body — never the invitation code.
+- Brute-force on the 8-char code (~3×10⁹ space) is theoretically reachable
+  with high request rates against the Worker. Family-internal use accepts
+  this; a future tightening would be a Cloudflare KV-backed per-IP rate limit
+  on `/api`. Rotate the code (`wrangler secret put INVITE_CODE` + redeploy)
+  if you suspect a leak.
+- `approveTask` / `rejectTask` / `cashout` additionally require `PARENT_PIN`
+  verified by the Worker (`checkPin`, constant-time compare).
+- The frontend stores the verified PIN in `localStorage` after a
   successful login. This effectively turns the device into a "parent device"
-  for the parent-mode auto-login from LINE notifications.
-- Secrets (`GOOGLE_PRIVATE_KEY`, `ACCESS_TOKEN`, etc.) live only in
+  for parent-mode auto-login on subsequent visits.
+- Push payloads are encrypted per RFC 8291 (ECDH P-256 + HKDF + AES-128-GCM)
+  with a fresh ephemeral key per send. The body never reaches FCM/APNs/Mozilla
+  in plaintext, even though the transport itself is TLS to those operators.
+- Secrets (`GOOGLE_PRIVATE_KEY`, `INVITE_CODE`, etc.) live only in
   `wrangler secret`-managed storage on Cloudflare; they are never sent to the
   browser.
 - We accept the residual risks (siblings inspecting `localStorage`, the
   invitation URL leaking inside the family) for a small family-internal app.
-  Token rotation is straightforward: `wrangler secret put ACCESS_TOKEN` +
+  Token rotation is straightforward: `wrangler secret put INVITE_CODE` +
   `npm run deploy` invalidates every stored client token (next /api call gets
   401 → locked screen) and a fresh invite URL is distributed.
 
 ## Things that intentionally aren't here
 
-- No Service Worker / offline caching. Adding one would conflict with the
-  "always show the latest deploy" behaviour we want during active development.
+- No offline caching in the Service Worker. `client/sw.js` exists *only* for
+  Web Push and the badge counter — it has no `fetch` handler, so the page
+  always loads from the network and "always show the latest deploy" still
+  holds.
 - No bundler for the frontend. The Worker serves `client/` as-is. Adding
   bundling trades simplicity for marginal performance — avoid until needed.
 - No automated tests. The behaviour surface is small enough to verify manually
@@ -433,7 +521,7 @@ When reviewing a PR, the things most likely to be wrong:
    referenced via `tr(...)` (or vice versa). Server-side, the equivalent slip
    is referencing a `MSG.x` key that doesn't exist.
 4. A new action was added but `requireUser` was set wrong (most actions need
-   `true`; `getConfig` and `verifyPassword` are the exceptions).
+   `true`; `getConfig` and `verifyPin` are the exceptions).
 5. A handler mutates a task without going through `casTaskStatus`. Without
    it, two concurrent requests can both pass the read-side validation and
    produce a lost update.
@@ -441,3 +529,7 @@ When reviewing a PR, the things most likely to be wrong:
 7. The user roster is server-managed via the `USERS` wrangler secret (JSON).
    If you find code that adds or deletes users from the client side, that is
    a regression — the roster is intentionally read-only on the frontend.
+8. Push regressions: any change to `sendWebPush` that drops the body or the
+   `Content-Encoding: aes128gcm` header will silently break iOS while leaving
+   Chrome working. If you touch `push.ts`, verify with `wrangler tail` that
+   sends to `web.push.apple.com` return `201`.

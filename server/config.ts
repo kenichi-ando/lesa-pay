@@ -2,12 +2,12 @@
  * Runtime config — derived from wrangler secrets, not from a spreadsheet.
  *
  * Everything is set once via `wrangler secret put …`:
- *   - PARENT_PASSWORD: parent-mode password (string)
- *   - USERS:           JSON array of {key,label} for the child roster
+ *   - PARENT_PIN: parent-mode PIN (string)
+ *   - USERS:      Comma-separated `key:label` pairs, e.g. `Rina:りな, Yurika:ゆりか`.
+ *                 `label` is optional (`key` is used when omitted).
  *
- * Changes require a `wrangler secret put` + `npm run deploy`. Family-scale
- * apps don't change the roster often enough for the spreadsheet round-trip
- * to be worth the extra Sheets read on every action.
+ * Family-scale apps don't change the roster often enough for the spreadsheet
+ * round-trip to be worth the extra Sheets read on every action.
  */
 
 import type { Env } from "./env";
@@ -20,7 +20,7 @@ export interface User {
 }
 
 export interface Config {
-	parentPassword: string;
+	parentPin: string;
 	users: User[];
 }
 
@@ -33,22 +33,13 @@ function parseUsers(raw: string): User[] {
 	if (!raw) return [];
 	if (usersCache && usersCache.raw === raw) return usersCache.parsed;
 
-	let data: unknown;
-	try {
-		data = JSON.parse(raw);
-	} catch {
-		throw new HttpError(500, "USERS secret is not valid JSON");
-	}
-	if (!Array.isArray(data)) {
-		throw new HttpError(500, "USERS secret must be a JSON array");
-	}
 	const parsed: User[] = [];
-	for (const u of data) {
-		if (u && typeof u === "object" && typeof (u as User).key === "string" && (u as User).key) {
-			const key = (u as User).key;
-			const label = typeof (u as User).label === "string" && (u as User).label ? (u as User).label : key;
-			parsed.push({ key, label });
-		}
+	for (const entry of raw.split(",")) {
+		const [keyPart, ...labelParts] = entry.split(":");
+		const key = (keyPart ?? "").trim();
+		if (!key) continue;
+		const label = labelParts.join(":").trim() || key;
+		parsed.push({ key, label });
 	}
 	usersCache = { raw, parsed };
 	return parsed;
@@ -56,23 +47,23 @@ function parseUsers(raw: string): User[] {
 
 export function fetchConfig(env: Env): Config {
 	return {
-		parentPassword: env.PARENT_PASSWORD ?? "",
+		parentPin: env.PARENT_PIN ?? "",
 		users: parseUsers(env.USERS ?? ""),
 	};
 }
 
-// Throws if the password is missing, the server is misconfigured, or the
-// supplied password does not match. Used by every parent-only action.
-export function checkPassword(env: Env, password: unknown): void {
-	if (typeof password !== "string" || password.length === 0) {
-		throw new HttpError(400, MSG.errPasswordRequired);
+// Throws if the PIN is missing, the server is misconfigured, or the supplied
+// PIN does not match. Used by every parent-only action.
+export function checkPin(env: Env, pin: unknown): void {
+	if (typeof pin !== "string" || pin.length === 0) {
+		throw new HttpError(400, MSG.errPinRequired);
 	}
 	const cfg = fetchConfig(env);
-	if (!cfg.parentPassword) {
-		throw new HttpError(500, MSG.errParentPwNotSet);
+	if (!cfg.parentPin) {
+		throw new HttpError(500, MSG.errParentPinNotSet);
 	}
-	if (!constantTimeEqual(password, cfg.parentPassword)) {
-		throw new HttpError(401, MSG.errPasswordWrong);
+	if (!constantTimeEqual(pin, cfg.parentPin)) {
+		throw new HttpError(401, MSG.errPinWrong);
 	}
 }
 

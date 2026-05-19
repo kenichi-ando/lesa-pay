@@ -16,6 +16,8 @@ import type { Env } from "./env";
 import { HttpError, constantTimeEqual, isValidUser } from "./util";
 
 export type { Env };
+const INVITE_CODE_LENGTH = 8;
+const INVITE_CODE_PATTERN = /^[A-Z0-9]{8}$/;
 
 export default {
 	async fetch(req: Request, env: Env): Promise<Response> {
@@ -62,24 +64,26 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
 		return json({ ok: false, error: `Invalid user: ${body.user}` }, 400);
 	}
 
-	// Origin is used by handlers that embed a deep link in LINE notifications.
-	// Trustworthy on Cloudflare — `req.url` reflects the edge host, not a
-	// Host header from the client.
-	const origin = new URL(req.url).origin;
-	const result = await def.handler(body, env, origin);
+	const result = await def.handler(body, env);
 	return json({ ok: true, ...(result as object) });
 }
 
-// Gate /api with the shared ACCESS_TOKEN secret. The token is delivered to the
-// browser once via an invitation URL (?k=<token>), persisted in localStorage,
-// and sent on every /api call as Authorization: Bearer <token>. Without it,
+// Gate /api with the shared INVITE_CODE secret. Family members type the 8-char
+// code into the locked screen once; the SPA persists it in localStorage and
+// sends it on every /api call as Authorization: Bearer <token>. Without it,
 // the static SPA still loads — but no spreadsheet data is ever exposed.
 function authorized(req: Request, env: Env): boolean {
-	if (!env.ACCESS_TOKEN) return false;
+	const inviteCode = env.INVITE_CODE ?? "";
+	if (!isValidInviteCode(inviteCode)) return false;
 	const header = req.headers.get("Authorization") ?? "";
-	const m = header.match(/^Bearer\s+(.+)$/i);
+	const m = /^Bearer\s+(.+)$/i.exec(header);
 	if (!m) return false;
-	return constantTimeEqual(m[1], env.ACCESS_TOKEN);
+	if (!isValidInviteCode(m[1])) return false;
+	return constantTimeEqual(m[1], inviteCode);
+}
+
+function isValidInviteCode(value: string): boolean {
+	return INVITE_CODE_PATTERN.test(value);
 }
 
 function corsHeaders(): Record<string, string> {
