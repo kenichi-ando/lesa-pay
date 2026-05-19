@@ -9,21 +9,20 @@ window.LESSERPAY_STRINGS = {
   app: { title: 'LesserPay' },
 
   header: {
-    refresh: '更新',
     currentUser: '現在のユーザー',
     currentKid: '{name}',
     currentParent: '保護者（{name}）'
   },
 
   userSelect: {
-    title: 'だれがつかう？',
-    desc: 'つかう人をえらんでね',
+    title: '誰が使う？',
+    desc: '使う人を選んでね',
     parent: '保護者',
     close: '選択画面を閉じる'
   },
 
   balance: {
-    label: 'いまのポイント',
+    label: '現在のポイント',
     unit: 'pt'
   },
 
@@ -109,9 +108,9 @@ window.LESSERPAY_STRINGS = {
   },
 
   settings: {
-    open: '設定をひらく',
+    open: '設定を開く',
     title: '⚙️ 設定',
-    desc: 'お知らせと音をきりかえできます',
+    desc: 'お知らせと音を切り替えできます',
     notifications: 'お知らせ',
     sound: '効果音',
     close: '閉じる'

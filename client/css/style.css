@@ -598,10 +598,6 @@ body {
   line-height: 1;
 }
 
-.tab-refresh {
-  margin-left: auto;
-}
-
 /* ---------------- Task list ---------------- */
 .tasks-list,
 .history-list {
@@ -1256,26 +1252,6 @@ body {
   border-top-color: var(--color-primary);
   box-sizing: border-box;
   transition: transform 0.2s ease;
-}
-
-/* ---------------- Refresh button spin ---------------- */
-.tab-refresh .refresh-icon {
-  display: inline-block;
-  font-size: 16px;
-  line-height: 1;
-  transition: transform 0.4s cubic-bezier(.5, 1.6, .4, 1);
-}
-
-.tab-refresh:hover .refresh-icon {
-  transform: rotate(60deg);
-}
-
-.tab-refresh.is-loading {
-  opacity: 0.6;
-}
-
-.tab-refresh:active {
-  transform: none;
 }
 
 @keyframes spin {

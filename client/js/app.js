@@ -41,7 +41,6 @@
     userSelectList: $('user-select-list'),
     userSelectCloseBtn: $('user-select-close-btn'),
     cashoutBtn: $('cashout-btn'),
-    refreshBtn: $('refresh-btn'),
     tabTasks: $('tab-tasks'),
     tabHistory: $('tab-history'),
     tabTasksBadge: $('tab-tasks-badge'),
@@ -125,7 +124,6 @@
 
     els.tabTasks.addEventListener('click', function () { switchTab('tasks'); });
     els.tabHistory.addEventListener('click', function () { switchTab('history'); });
-    els.refreshBtn.addEventListener('click', function () { triggerRefresh(); });
 
     els.userLabel.addEventListener('click', function (e) {
       e.stopPropagation();
@@ -201,16 +199,14 @@
     syncSettingsToggles();
   }
 
-  // ---- Refresh w/ spin ----
+  // ---- Refresh ----
   let refreshing = false;
   async function triggerRefresh() {
     if (refreshing) return;
     refreshing = true;
-    els.refreshBtn.classList.add('is-loading');
     try {
       await controller.loadData(true);
     } finally {
-      els.refreshBtn.classList.remove('is-loading');
       refreshing = false;
     }
   }
