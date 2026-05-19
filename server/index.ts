@@ -16,8 +16,11 @@ import type { Env } from "./env";
 import { HttpError, constantTimeEqual, isValidUser } from "./util";
 
 export type { Env };
-const INVITE_CODE_LENGTH = 8;
-const INVITE_CODE_PATTERN = /^[A-Z0-9]{8}$/;
+const INVITE_CODE_PATTERN = /^[A-Z0-9]{6}$/;
+// API_TOKEN: opaque bearer token. We only length-bound it to reject pathological
+// inputs; format is otherwise unconstrained.
+const API_TOKEN_MIN_LENGTH = 16;
+const API_TOKEN_MAX_LENGTH = 128;
 
 export default {
 	async fetch(req: Request, env: Env): Promise<Response> {
@@ -29,9 +32,6 @@ export default {
 
 		try {
 			if (url.pathname === "/api" && req.method === "POST") {
-				if (!authorized(req, env)) {
-					return json({ ok: false, error: "Unauthorized" }, 401);
-				}
 				return await dispatch(req, env);
 			}
 			// Anything else is a static asset (SPA shell, JS, CSS, icons, etc.).
@@ -56,9 +56,30 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
 		return json({ ok: false, error: "Invalid JSON body" }, 400);
 	}
 
+	// `redeemInvite` is the only action that runs without API_TOKEN. Everything
+	// else requires Authorization: Bearer <API_TOKEN>.
+	if (body.action === "redeemInvite") {
+		const code = typeof body.code === "string" ? body.code : "";
+		if (!isValidInviteCode(code)) {
+			return json({ ok: false, error: "Invalid invite code" }, 400);
+		}
+		const expected = env.INVITE_CODE ?? "";
+		if (!isValidInviteCode(expected) || !constantTimeEqual(code, expected)) {
+			return json({ ok: false, error: "Invalid invite code" }, 401);
+		}
+		const apiToken = env.API_TOKEN ?? "";
+		if (!isValidApiToken(apiToken)) {
+			return json({ ok: false, error: "Server misconfigured" }, 500);
+		}
+		return json({ ok: true, apiToken });
+	}
+
 	const def = body.action ? ACTIONS[body.action] : undefined;
 	if (!def) {
 		return json({ ok: false, error: `Unsupported action: ${body.action}` }, 400);
+	}
+	if (!authorized(req, env)) {
+		return json({ ok: false, error: "Unauthorized" }, 401);
 	}
 	if (def.requireUser && !isValidUser(body.user)) {
 		return json({ ok: false, error: `Invalid user: ${body.user}` }, 400);
@@ -68,22 +89,30 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
 	return json({ ok: true, ...(result as object) });
 }
 
-// Gate /api with the shared INVITE_CODE secret. Family members type the 8-char
-// code into the locked screen once; the SPA persists it in localStorage and
-// sends it on every /api call as Authorization: Bearer <token>. Without it,
-// the static SPA still loads — but no spreadsheet data is ever exposed.
+// Gate /api with the long-lived API_TOKEN secret. The SPA obtains it once via
+// `redeemInvite` (after the user types the short INVITE_CODE) and persists it
+// in localStorage. Brute-forcing the API_TOKEN directly is the only attack
+// surface left for non-invite-holders, so it's sized for ~256 bits of entropy.
 function authorized(req: Request, env: Env): boolean {
-	const inviteCode = env.INVITE_CODE ?? "";
-	if (!isValidInviteCode(inviteCode)) return false;
+	const expected = env.API_TOKEN ?? "";
+	if (!isValidApiToken(expected)) return false;
 	const header = req.headers.get("Authorization") ?? "";
 	const m = /^Bearer\s+(.+)$/i.exec(header);
 	if (!m) return false;
-	if (!isValidInviteCode(m[1])) return false;
-	return constantTimeEqual(m[1], inviteCode);
+	if (!isValidApiToken(m[1])) return false;
+	return constantTimeEqual(m[1], expected);
 }
 
 function isValidInviteCode(value: string): boolean {
 	return INVITE_CODE_PATTERN.test(value);
+}
+
+function isValidApiToken(value: string): boolean {
+	return (
+		typeof value === "string" &&
+		value.length >= API_TOKEN_MIN_LENGTH &&
+		value.length <= API_TOKEN_MAX_LENGTH
+	);
 }
 
 function corsHeaders(): Record<string, string> {

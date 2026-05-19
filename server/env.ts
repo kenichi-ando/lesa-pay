@@ -10,8 +10,13 @@ export interface Env {
 	GOOGLE_PRIVATE_KEY: string;
 	// Target spreadsheet (one per family).
 	GOOGLE_SHEET_ID: string;
-	// Shared invitation code gating /api.
+	// Shared invitation code (6-char [A-Z0-9]). Family members type this once
+	// into the locked screen; the server exchanges it for API_TOKEN.
 	INVITE_CODE: string;
+	// Long random bearer token (43-char [A-Za-z0-9_-], 256 bits) used as
+	// Authorization: Bearer on every /api call. Returned by the redeemInvite
+	// action and persisted by the SPA in localStorage.
+	API_TOKEN: string;
 	// Parent-mode PIN (verified on approve / reject / cashout).
 	PARENT_PIN: string;
 	// JSON array of {key,label} for the user roster, e.g.

@@ -177,7 +177,7 @@
     }
 
     async function api(action, payload) {
-      const token = store.getAccessToken();
+      const token = store.getApiToken();
       if (!token) throw new UnauthorizedError();
       const body = Object.assign({ action: action }, payload || {});
       if (state.user && body.user == null) body.user = state.user;
@@ -197,7 +197,7 @@
       }
 
       if (res.status === 401) {
-        store.clearAccessToken();
+        store.clearApiToken();
         throw new UnauthorizedError();
       }
 
@@ -334,27 +334,53 @@
       const submit = modal.querySelector('#invite-submit-btn');
       const cancel = modal.querySelector('#invite-cancel-btn');
       const error = modal.querySelector('#invite-error');
-      const saveToken = function () {
-        const parsedToken = (input.value || '').trim().toUpperCase();
-        if (!parsedToken) {
+      const submitBtn = submit;
+      const redeemInvite = async function () {
+        const code = (input.value || '').trim().toUpperCase();
+        if (!code) {
           error.textContent = tr('locked.invalid');
           error.classList.remove('hidden');
           return;
         }
-        if (!isValidInviteCode(parsedToken)) {
+        if (!isValidInviteCode(code)) {
           error.textContent = tr('locked.invalidLength', { n: CONFIG.INVITE_CODE_LENGTH });
           error.classList.remove('hidden');
           return;
         }
-        store.setAccessToken(parsedToken);
-        location.reload();
+        submitBtn.disabled = true;
+        const originalLabel = submitBtn.textContent;
+        submitBtn.textContent = tr('locked.submitting');
+        try {
+          const res = await fetch(CONFIG.API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'redeemInvite', code: code })
+          });
+          let data = null;
+          try { data = await res.json(); } catch (_e) {}
+          if (!res.ok || !data || !data.ok || typeof data.apiToken !== 'string') {
+            error.textContent = res.status === 401
+              ? tr('locked.invalidCode')
+              : tr('errors.network') + ' (' + res.status + ')';
+            error.classList.remove('hidden');
+            return;
+          }
+          store.setApiToken(data.apiToken);
+          location.reload();
+        } catch (_err) {
+          error.textContent = tr('errors.network');
+          error.classList.remove('hidden');
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalLabel;
+        }
       };
       panel.querySelector('#locked-token-open').onclick = function () {
         error.classList.add('hidden');
         modal.classList.remove('hidden');
         setTimeout(function () { input.focus(); }, 50);
       };
-      submit.onclick = saveToken;
+      submit.onclick = redeemInvite;
       cancel.onclick = function () { modal.classList.add('hidden'); };
       modal.onclick = function (e) {
         if (e.target === modal) modal.classList.add('hidden');
@@ -362,7 +388,7 @@
       input.onkeydown = function (e) {
         if (e.key !== 'Enter') return;
         e.preventDefault();
-        saveToken();
+        redeemInvite();
       };
       input.oninput = function () { error.classList.add('hidden'); };
       panel.classList.remove('hidden');
@@ -404,7 +430,7 @@
       if ('clearAppBadge' in navigator) {
         navigator.clearAppBadge().catch(function () {});
       }
-      if (!store.getAccessToken()) {
+      if (!store.getApiToken()) {
         renderLocked();
         return;
       }

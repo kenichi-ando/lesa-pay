@@ -16,9 +16,9 @@
         else localStorage.removeItem(sk.parentMode);
       },
       clearParentMode: function () { localStorage.removeItem(sk.parentMode); },
-      getAccessToken: function () { return localStorage.getItem(sk.accessToken); },
-      setAccessToken: function (token) { localStorage.setItem(sk.accessToken, token); },
-      clearAccessToken: function () { localStorage.removeItem(sk.accessToken); },
+      getApiToken: function () { return localStorage.getItem(sk.apiToken); },
+      setApiToken: function (token) { localStorage.setItem(sk.apiToken, token); },
+      clearApiToken: function () { localStorage.removeItem(sk.apiToken); },
       getPushPromptDismissed: function () { return localStorage.getItem(sk.pushPromptDismissed) === '1'; },
       setPushPromptDismissed: function () { localStorage.setItem(sk.pushPromptDismissed, '1'); },
       clearPushPromptDismissed: function () { localStorage.removeItem(sk.pushPromptDismissed); }

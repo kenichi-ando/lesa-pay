@@ -118,9 +118,9 @@ await api('myNewAction', { foo: 42 });
 | Key                     | Purpose |
 | ----------------------- | ------- |
 | `lesserpay_user`          | Currently selected sheet-name suffix (a key into the `USERS` roster) |
-| `lesserpay_parent_pw`     | Last successful parent password — kept so a returning device can re-enter parent mode without retyping it |
+| `lesserpay_parent_pin`    | Last successful parent PIN — kept so a returning device can re-enter parent mode without retyping it |
 | `lesserpay_parent_mode`   | `"1"` while the current session is acting as a parent device |
-| `lesserpay_access_token`  | Shared 8-char invitation code, typed once into the locked screen and sent on every `/api` call as `Authorization: Bearer …`. Cleared on 401 (code rotated server-side). |
+| `lesserpay_api_token`     | Long bearer token (`API_TOKEN` secret, ~256 bits) returned by `redeemInvite` after the user types the short `INVITE_CODE` once. Sent on every `/api` call as `Authorization: Bearer …`. Cleared on 401 (server-side rotation forces re-redeem). |
 | `lesserpay_push_prompt_dismissed` | `"1"` once the user has dismissed the "enable notifications" prompt for this device |
 
 Tasks and history are *not* cached across reloads. The user roster itself is
@@ -206,7 +206,8 @@ synchronous. Changes require `wrangler secret put …` + `npm run deploy`.
 | `GOOGLE_CLIENT_EMAIL` | ✅   | Service Account email for Sheets API. |
 | `GOOGLE_PRIVATE_KEY`  | ✅   | Service Account private key (PEM). |
 | `GOOGLE_SHEET_ID`            | ✅   | Target spreadsheet (one per family). |
-| `INVITE_CODE`         | ✅   | Shared invitation code gating `/api`. Verified with `constantTimeEqual`. |
+| `INVITE_CODE`         | ✅   | 6-char `[A-Z0-9]` invitation code. Used only by the `redeemInvite` action: the SPA submits it once on the locked screen, the Worker verifies it with `constantTimeEqual` and returns `API_TOKEN`. Never sent again. |
+| `API_TOKEN`           | ✅   | Long opaque bearer token (~256 bits) returned by `redeemInvite`. Sent as `Authorization: Bearer …` on every other `/api` call. Verified with `constantTimeEqual`. |
 | `PARENT_PIN`          | ✅   | Parent-mode PIN. Verified on approve / reject / cashout. |
 | `USERS`               | ✅   | Comma-separated `key:label` pairs. `key` is the sheet-name suffix (`Tasks_<key>` / `History_<key>`); `label` is an optional display name (defaults to `key`). |
 | `PUSH_VAPID_PUBLIC_KEY`  | ⬜ | VAPID public key (P-256 uncompressed point, base64url). Push is skipped if unset. |
@@ -369,8 +370,8 @@ columns in whatever language they prefer without affecting behaviour.
 - `app.js` — bootstraps the app, wires dependencies, defines shared `state`,
   and attaches DOM event listeners.
 - `app-i18n.js` — `tr()` and `applyI18n()` implementation.
-- `app-store.js` — browser persistence (`lesserpay_user`, `lesserpay_parent_pw`,
-  `lesserpay_access_token`).
+- `app-store.js` — browser persistence (`lesserpay_user`, `lesserpay_parent_pin`,
+  `lesserpay_api_token`).
 - `app-utils.js` — `escapeHtml`, date parsing/formatting, expired checks,
   and minutes formatting.
 - `app-render.js` — pure render layer (`render()`, `renderTabs()`, task/history
@@ -393,10 +394,12 @@ columns in whatever language they prefer without affecting behaviour.
        handleNewAction(env, req.user as string, req.foo),
    },
    ```
-   The dispatcher in `index.ts` runs the `INVITE_CODE` check before any
-   handler, so every new action is automatically gated — no per-action work
-   needed for that. Parent-only actions additionally call `checkPin(env,
-   req.password)` inside the handler (see `approveTask` / `cashout`).
+   The dispatcher in `index.ts` enforces `Authorization: Bearer <API_TOKEN>`
+   before any handler runs, so every new action is automatically gated — no
+   per-action work needed for that. (`redeemInvite` is the sole exception
+   handled inline in the dispatcher, since it issues the token.) Parent-only
+   actions additionally call `checkPin(env, req.password)` inside the handler
+   (see `approveTask` / `cashout`).
 2. **Worker** — implement `handleNewAction(env, user, foo)`. Use
    `casTaskStatus` for any task-row state transition; throw `HttpError` on
    bad input — `index.ts` packages errors as `{ ok: false, error: '...' }`.
@@ -441,7 +444,7 @@ API are all updated atomically.
 Set once with `wrangler secret put <NAME>`. See the table in the [Runtime
 config](#runtime-config-wrangler-secrets) section above for the full list.
 Required at minimum: `GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `GOOGLE_SHEET_ID`,
-`INVITE_CODE`, `PARENT_PIN`, `USERS`. `PUSH_VAPID_PUBLIC_KEY` /
+`INVITE_CODE`, `API_TOKEN`, `PARENT_PIN`, `USERS`. `PUSH_VAPID_PUBLIC_KEY` /
 `PUSH_VAPID_PRIVATE_KEY` / `PUSH_SUBJECT` are optional (omit them and Web
 Push is silently disabled).
 
@@ -465,20 +468,30 @@ because the Service Account itself owns its delegation.
 
 ## Security model (and its limits)
 
-- **`INVITE_CODE` gates every `/api` call.** The Worker rejects any request
-  whose `Authorization: Bearer <token>` header doesn't match the secret
-  (constant-time compare). The code is 8 chars (A–Z + 0–9, ~40 bits of
-  entropy). Without it, a stranger who learns the Worker URL sees only the
-  locked screen — no `getData` / `applyTask` is reachable.
-- The code is typed once into the locked screen (no URL parameter), stored in
-  `localStorage`, and never appears in the URL — so screenshots, browser
-  history, and screen-share streams don't leak it. Push notifications carry
-  only the title and body — never the invitation code.
-- Brute-force on the 8-char code (~3×10⁹ space) is theoretically reachable
-  with high request rates against the Worker. Family-internal use accepts
-  this; a future tightening would be a Cloudflare KV-backed per-IP rate limit
-  on `/api`. Rotate the code (`wrangler secret put INVITE_CODE` + redeploy)
-  if you suspect a leak.
+- **Two-layer auth: short `INVITE_CODE` + long `API_TOKEN`.** Family members
+  type a 6-char `[A-Z0-9]` invitation code into the locked screen exactly
+  once. The SPA submits it via the `redeemInvite` action; on a constant-time
+  match the Worker returns the long-lived `API_TOKEN` (~256 bits). All other
+  `/api` calls require `Authorization: Bearer <API_TOKEN>` — the short code
+  is never reused for API gating.
+- This split lets the human-typed secret stay short (6 chars / ~31 bits) while
+  the actual API gate is sized so that brute force is infeasible without rate
+  limiting. A 6-char invite code alone (≈2.18×10⁹ space) is reachable in
+  weeks at high request rates, but the only thing an attacker gets by guessing
+  it is the chance to redeem one `API_TOKEN`. Combined with normal Cloudflare
+  edge rate-limiting against the Worker, family-internal use is acceptable.
+- The invitation code is typed once and never persisted client-side; only the
+  `API_TOKEN` is stored in `localStorage`. Neither value ever appears in the
+  URL, so screenshots, browser history, and screen-share streams don't leak
+  them. Push notifications carry only the title and body.
+- Rotation:
+  - **Invite-only rotation**: `wrangler secret put INVITE_CODE` + redeploy.
+    Existing family devices keep their `API_TOKEN`, so they're unaffected;
+    new joiners use the new code.
+  - **Full rotation**: also `wrangler secret put API_TOKEN` + redeploy. Every
+    device's stored token starts returning 401, the SPA falls back to the
+    locked screen, and family members must re-redeem with the (possibly new)
+    invitation code.
 - `approveTask` / `rejectTask` / `cashout` additionally require `PARENT_PIN`
   verified by the Worker (`checkPin`, constant-time compare).
 - The frontend stores the verified PIN in `localStorage` after a
@@ -487,14 +500,13 @@ because the Service Account itself owns its delegation.
 - Push payloads are encrypted per RFC 8291 (ECDH P-256 + HKDF + AES-128-GCM)
   with a fresh ephemeral key per send. The body never reaches FCM/APNs/Mozilla
   in plaintext, even though the transport itself is TLS to those operators.
-- Secrets (`GOOGLE_PRIVATE_KEY`, `INVITE_CODE`, etc.) live only in
-  `wrangler secret`-managed storage on Cloudflare; they are never sent to the
-  browser.
+- Secrets (`GOOGLE_PRIVATE_KEY`, `INVITE_CODE`, `API_TOKEN`, etc.) live only
+  in `wrangler secret`-managed storage on Cloudflare. The `API_TOKEN` is sent
+  to the browser exactly once — as the response to a successful `redeemInvite`
+  — and never re-issued; everything else stays server-side.
 - We accept the residual risks (siblings inspecting `localStorage`, the
-  invitation URL leaking inside the family) for a small family-internal app.
-  Token rotation is straightforward: `wrangler secret put INVITE_CODE` +
-  `npm run deploy` invalidates every stored client token (next /api call gets
-  401 → locked screen) and a fresh invite URL is distributed.
+  invitation code leaking inside the family) for a small family-internal app.
+  Rotation is described above (invite-only vs full rotation).
 
 ## Things that intentionally aren't here
 

@@ -90,11 +90,13 @@ window.LESSERPAY_STRINGS = {
     desc: '家族から教わった招待コードを入力してください。',
     openInput: '招待コードを入力',
     inputLabel: '招待コード ({n} 文字 / 大文字・数字)',
-    inputPlaceholder: '例: K7QXZP4M',
+    inputPlaceholder: '例: K7QXZ4',
     cancel: '閉じる',
     submit: 'アプリを開く',
+    submitting: '確認中…',
     invalid: '招待コードを入力してください',
-    invalidLength: '招待コードは {n} 文字 (大文字または数字) で入力してください'
+    invalidLength: '招待コードは {n} 文字 (大文字または数字) で入力してください',
+    invalidCode: '招待コードが正しくありません'
   },
 
   users: {
