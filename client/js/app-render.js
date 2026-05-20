@@ -16,7 +16,7 @@
       const status = getStatus();
       const sub = Number(task.submitReward) || 0;
       const com = Number(task.completeReward) || Number(task.points) || 0;
-      const showSub = sub > 0 && task.status !== status.REJECTED;
+      const showSub = sub > 0 && task.status !== status.RETURNED;
       if (showSub && com > 0) {
         return '<span class="task-points">' + escapeHtml(tr('tasks.rewardBoth', {
           submit: sub.toLocaleString(),
@@ -41,7 +41,7 @@
       const statusClass =
         task.status === status.SUBMITTED ? 'status-applied' :
         task.status === status.APPROVED ? 'status-approved' :
-        task.status === status.REJECTED ? 'status-rejected' : 'status-pending';
+        task.status === status.RETURNED ? 'status-returned' : 'status-pending';
 
       const expired = isExpired(task.expiry);
       const expiryLabel = task.expiry
@@ -54,14 +54,14 @@
           '          <button class="task-btn approve-btn" data-task-id="' + escapeHtml(task.id) + '" data-action="approve">' + escapeHtml(tr('tasks.approve')) + '</button>\n' +
           '          <button class="task-btn reject-btn" data-task-id="' + escapeHtml(task.id) + '" data-action="reject">' + escapeHtml(tr('tasks.reject')) + '</button>\n' +
           '        </div>\n      ';
-      } else if (state.parentMode && (task.status === status.PENDING || task.status === status.REJECTED)) {
+      } else if (state.parentMode && (task.status === status.PENDING || task.status === status.RETURNED)) {
         actionHtml = '';
       } else if (task.status === status.PENDING) {
         actionHtml = '<button class="task-btn" data-task-id="' + escapeHtml(task.id) + '" data-action="apply" ' + (expired ? 'disabled' : '') + '>' + escapeHtml(tr('tasks.apply')) + '</button>';
-      } else if (task.status === status.REJECTED) {
+      } else if (task.status === status.RETURNED) {
         actionHtml = '<button class="task-btn resubmit-btn" data-task-id="' + escapeHtml(task.id) + '" data-action="apply" ' + (expired ? 'disabled' : '') + '>' + escapeHtml(tr('tasks.resubmit')) + '</button>';
       } else if (task.status === status.SUBMITTED) {
-        actionHtml = '<span class="task-status-badge">' + escapeHtml(tr('tasks.appliedBadge')) + '</span>';
+        actionHtml = '<button class="task-btn withdraw-btn" data-task-id="' + escapeHtml(task.id) + '" data-action="withdraw" aria-label="' + escapeHtml(tr('tasks.withdraw')) + '">' + escapeHtml(tr('tasks.appliedBadge')) + '</button>';
       } else if (task.status === status.APPROVED) {
         actionHtml = '<span class="task-status-badge">' + escapeHtml(tr('tasks.approvedBadge')) + '</span>';
       }
@@ -89,7 +89,7 @@
       els.panelTasks.classList.toggle('hidden', tab !== 'tasks');
       els.panelHistory.classList.toggle('hidden', tab !== 'history');
 
-      const targetStatus = state.parentMode ? status.SUBMITTED : status.REJECTED;
+      const targetStatus = state.parentMode ? status.SUBMITTED : status.RETURNED;
       const actionCount = state.tasks.filter(function (t) { return t.status === targetStatus; }).length;
       if (actionCount > 0) {
         els.tabTasksBadge.textContent = String(actionCount);

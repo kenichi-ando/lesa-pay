@@ -18,9 +18,15 @@ export const SHEET_PREFIX = {
 export const STATUS = {
 	PENDING: "Pending",
 	SUBMITTED: "Submitted",
-	REJECTED: "Rejected",
+	RETURNED: "Returned",
 	APPROVED: "Approved",
 } as const;
+
+// Read a raw STATUS cell value. Blank → PENDING.
+export function normalizeStatus(raw: unknown): string {
+	const s = String(raw ?? "");
+	return s || STATUS.PENDING;
+}
 
 // Task sheet schema. Order = column index. The strings here are TypeScript
 // keys (used as `TASK_COL.STATUS` etc.); they have nothing to do with what
@@ -56,6 +62,7 @@ export const HISTORY_LAST_COL_LETTER = colLetter(HISTORY_COL_COUNT);
 export const HISTORY_LABEL = {
 	SUBMIT_PREFIX: "📩 ",
 	APPROVE_PREFIX: "✅ ",
+	WITHDRAW_PREFIX: "↩️ ",
 	CASHOUT: "💸 レッサーポイント消費",
 } as const;
 

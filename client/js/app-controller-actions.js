@@ -143,6 +143,24 @@
           toast(err.message, 'error');
           btn.disabled = false;
         }
+        return;
+      }
+
+      if (action === 'withdraw') {
+        if (!confirm(tr('tasks.confirmWithdraw'))) return;
+        btn.disabled = true;
+        try {
+          await deps.api('withdrawTask', { taskId: id });
+          sound.play('reject');
+          flashRow(btn);
+          toast(tr('tasks.toastWithdrawn'));
+          deps.clearDataCache();
+          await deps.loadData(true);
+        } catch (err) {
+          sound.play('error');
+          toast(err.message, 'error');
+          btn.disabled = false;
+        }
       }
     }
 

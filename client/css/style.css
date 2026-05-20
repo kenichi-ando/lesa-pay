@@ -764,8 +764,28 @@ body {
   box-shadow: 0 2px 6px rgba(232, 162, 58, 0.4);
 }
 
-/* Border color for the rejected state */
-.task-item.status-rejected {
+/* Withdraw is a hidden affordance: the SUBMITTED badge stays visually a badge,
+   but is actually a button. Long-press / hover / focus reveals it's tappable
+   so a curious child finds it, while the casual reader just sees "申請中". */
+.task-btn.withdraw-btn {
+  background: transparent;
+  color: var(--color-warning);
+  border: 1.5px solid var(--color-warning);
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: none;
+  border-radius: 14px;
+}
+.task-btn.withdraw-btn:hover,
+.task-btn.withdraw-btn:focus-visible {
+  background: var(--color-warning);
+  color: white;
+  box-shadow: 0 2px 6px rgba(232, 162, 58, 0.4);
+}
+
+/* Border color for the returned (parent sent back for revision) state */
+.task-item.status-returned {
   border-left-color: var(--color-warning);
   background: linear-gradient(90deg, #fff3df 0%, #ffffff 30%);
 }

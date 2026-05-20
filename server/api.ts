@@ -12,6 +12,7 @@ import {
 	TASK_COL,
 	TASK_LAST_COL_LETTER,
 	colLetter,
+	normalizeStatus,
 } from "./schema";
 import { MSG, fmt } from "./messages";
 import {
@@ -226,7 +227,7 @@ export async function casTaskStatus(
 		throw new HttpError(502, `STATUS read failed: ${readRes.status}`);
 	}
 	const { values: cellValues } = (await readRes.json()) as { values?: unknown[][] };
-	const current = String(cellValues?.[0]?.[0] ?? "") || STATUS.PENDING;
+	const current = normalizeStatus(cellValues?.[0]?.[0]);
 	if (current !== expected) {
 		throw new HttpError(409, fmt(MSG.errNotAppliedTask, { status: current }));
 	}
@@ -314,7 +315,7 @@ function shapeTasks(rows: unknown[][]) {
 		.filter((r) => nonEmpty(r[TASK_COL.ID]) && nonEmpty(r[TASK_COL.TITLE]))
 		.map((r) => ({
 			id: String(r[TASK_COL.ID]),
-			status: String(r[TASK_COL.STATUS] ?? STATUS.PENDING) || STATUS.PENDING,
+			status: normalizeStatus(r[TASK_COL.STATUS]),
 			category: String(r[TASK_COL.CATEGORY] ?? ""),
 			title: String(r[TASK_COL.TITLE] ?? ""),
 			submitReward: toNumber(r[TASK_COL.SUBMIT_REWARD]),

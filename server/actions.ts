@@ -6,7 +6,7 @@
  */
 
 import type { Env } from "./env";
-import { SHEET_PREFIX, STATUS, TASK_COL, HISTORY_LABEL } from "./schema";
+import { SHEET_PREFIX, STATUS, TASK_COL, HISTORY_LABEL, normalizeStatus } from "./schema";
 import { MSG, fmt } from "./messages";
 import {
 	appendHistoryRow,
@@ -66,6 +66,11 @@ export const ACTIONS: Record<string, ActionDef> = {
 		handler: async (req, env) =>
 			handleRejectTask(env, req.user as string, req.taskId as string, req.pin),
 	},
+	withdrawTask: {
+		requireUser: true,
+		handler: async (req, env) =>
+			handleWithdrawTask(env, req.user as string, req.taskId as string),
+	},
 	cashout: {
 		requireUser: true,
 		handler: async (req, env) =>
@@ -122,7 +127,7 @@ async function handleApplyTask(env: Env, user: string, taskId: string) {
 	//   3. CAS STATUS via casTaskStatus, which re-reads right before writing.
 	const { row, rowIndex } = await findTaskRow(env, token, tasksSheet, taskId);
 
-	const currentStatus = (String(row[TASK_COL.STATUS] ?? "") || STATUS.PENDING) as string;
+	const currentStatus = normalizeStatus(row[TASK_COL.STATUS]);
 	if (currentStatus === STATUS.SUBMITTED) throw new HttpError(409, MSG.errAlreadyApplied);
 	if (currentStatus === STATUS.APPROVED) throw new HttpError(409, MSG.errAlreadyApproved);
 
@@ -136,8 +141,11 @@ async function handleApplyTask(env: Env, user: string, taskId: string) {
 	const taskLabel = composeTaskLabel(category, title);
 
 	// Submit reward fires only on the first transition (PENDING → SUBMITTED).
-	// Resubmitting from REJECTED skips the submit reward.
-	const isFirstSubmit = currentStatus !== STATUS.REJECTED;
+	// Resubmitting from RETURNED skips it: the parent sent it back and the
+	// reward was already paid once. Withdrawals route through PENDING with a
+	// compensating history entry, so they re-earn the submit reward on the next
+	// apply — the +/- pair cancels out.
+	const isFirstSubmit = currentStatus !== STATUS.RETURNED;
 
 	if (isFirstSubmit && submitReward > 0) {
 		await appendHistoryRow(env, token, historySheet, [
@@ -196,7 +204,7 @@ async function handleApproveTask(env: Env, user: string, taskId: string, pin: un
 
 	const { row, rowIndex } = await findTaskRow(env, token, tasksSheet, taskId);
 
-	const currentStatus = (String(row[TASK_COL.STATUS] ?? "") || STATUS.PENDING) as string;
+	const currentStatus = normalizeStatus(row[TASK_COL.STATUS]);
 	if (currentStatus === STATUS.APPROVED) throw new HttpError(409, MSG.errAlreadyApproved);
 	if (currentStatus !== STATUS.SUBMITTED) {
 		throw new HttpError(409, fmt(MSG.errNotAppliedTask, { status: currentStatus }));
@@ -273,13 +281,13 @@ async function handleRejectTask(
 	const tasksSheet = SHEET_PREFIX.TASKS + user;
 
 	const { row, rowIndex } = await findTaskRow(env, token, tasksSheet, taskId);
-	const currentStatus = (String(row[TASK_COL.STATUS] ?? "") || STATUS.PENDING) as string;
+	const currentStatus = normalizeStatus(row[TASK_COL.STATUS]);
 	// History row was already credited at approve time; stop double-pay.
 	if (currentStatus === STATUS.APPROVED) {
 		throw new HttpError(409, MSG.errCannotRejectApproved);
 	}
 
-	await casTaskStatus(env, token, tasksSheet, rowIndex, currentStatus, STATUS.REJECTED);
+	await casTaskStatus(env, token, tasksSheet, rowIndex, currentStatus, STATUS.RETURNED);
 	const cfg = fetchConfig(env);
 	const displayName = labelFor(cfg.users, user);
 	const category = String(row[TASK_COL.CATEGORY] ?? "");
@@ -291,6 +299,42 @@ async function handleRejectTask(
 		fmt(MSG.notifyRejectBody, { user: displayName, label: taskLabel }),
 		"child",
 	);
+
+	return { taskId };
+}
+
+async function handleWithdrawTask(env: Env, user: string, taskId: string) {
+	if (!taskId) throw new HttpError(400, MSG.errTaskIdMissing);
+
+	const token = await getAccessToken(env);
+	const tasksSheet = SHEET_PREFIX.TASKS + user;
+	const historySheet = SHEET_PREFIX.HISTORY + user;
+
+	const { row, rowIndex } = await findTaskRow(env, token, tasksSheet, taskId);
+	const currentStatus = normalizeStatus(row[TASK_COL.STATUS]);
+	// Withdraw cancels a pending submission only. Approved tasks have already
+	// paid the complete reward, and pending/returned tasks weren't submitted in
+	// the first place.
+	if (currentStatus !== STATUS.SUBMITTED) {
+		throw new HttpError(409, fmt(MSG.errNotAppliedTask, { status: currentStatus }));
+	}
+
+	const submitReward = toNumber(row[TASK_COL.SUBMIT_REWARD]);
+	const category = String(row[TASK_COL.CATEGORY] ?? "");
+	const title = String(row[TASK_COL.TITLE] ?? "");
+	const taskLabel = composeTaskLabel(category, title);
+
+	// Compensate the prior submit-reward credit, if any. Even when submitReward
+	// is 0 we still log a row so the timeline shows the withdrawal happened.
+	// Append before flipping status: a partial failure that stops here leaves
+	// the task in SUBMITTED, which is recoverable; the reverse order would
+	// produce a withdrawn task with no compensating history.
+	await appendHistoryRow(env, token, historySheet, [
+		formatDateTime(new Date()),
+		HISTORY_LABEL.WITHDRAW_PREFIX + taskLabel,
+		submitReward > 0 ? -submitReward : 0,
+	]);
+	await casTaskStatus(env, token, tasksSheet, rowIndex, currentStatus, STATUS.PENDING);
 
 	return { taskId };
 }

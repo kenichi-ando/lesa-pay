@@ -31,7 +31,7 @@ structured and how to extend it safely" — in English, alongside the source.
 
 - The browser is **untrusted**. A child can open DevTools and replay any HTTP request.
 - Therefore *all* state-transition checks (only APPLIED can be approved, only
-  PENDING/REJECTED can submit, balance must be sufficient, etc.) live in the
+  PENDING/RETURNED can submit, balance must be sufficient, etc.) live in the
   Worker.
 - The frontend's only job is to render and to forward user intents.
 - API and SPA share the same origin: the Worker matches `/api` first, and falls
@@ -176,7 +176,7 @@ are derived from it.
 | Index | Key                | Notes |
 | ----: | ------------------ | ----- |
 | 0     | `ID`               | Auto-generated on read if blank (`T<unix>_<rand>`) |
-| 1     | `STATUS`           | `STATUS.PENDING` / `SUBMITTED` / `REJECTED` / `APPROVED`. Blank = `PENDING`. |
+| 1     | `STATUS`           | `STATUS.PENDING` / `SUBMITTED` / `RETURNED` / `APPROVED`. Blank = `PENDING`. |
 | 2     | `CATEGORY`         | Used as the group heading in the UI. Empty rows fall under `tasks.otherGroup`. |
 | 3     | `TITLE`            | Required |
 | 4     | `SUBMIT_REWARD`    | Granted on the *first* submit only |
@@ -192,7 +192,7 @@ automatically.
 | Index | Key       | Notes |
 | ----: | --------- | ----- |
 | 0     | `DATE`    | `yyyy/MM/dd HH:mm` |
-| 1     | `CONTENT` | Free-form, emoji-prefixed string set by the Worker. Format is `"<emoji> <category> <title>"` for task events (e.g. `"✅ Chores Wash dishes"`, `"📩 Study Spelling drill"`) and `HISTORY_LABEL.CASHOUT` for cashouts. The catalogue of prefixes lives in `schema.ts` `HISTORY_LABEL`. |
+| 1     | `CONTENT` | Free-form, emoji-prefixed string set by the Worker. Format is `"<emoji> <category> <title>"` for task events (e.g. `"✅ Chores Wash dishes"`, `"📩 Study Spelling drill"`, `"↩️ Study Spelling drill"` for withdrawals) and `HISTORY_LABEL.CASHOUT` for cashouts. The catalogue of prefixes lives in `schema.ts` `HISTORY_LABEL`. |
 | 2     | `POINTS`  | Positive (reward) or negative (cashout) |
 
 ### Runtime config (wrangler secrets)
@@ -226,7 +226,7 @@ re-parse the secret on every call.
 ### Status values
 
 ```ts
-STATUS = { PENDING: 'Pending', SUBMITTED: 'Submitted', REJECTED: 'Rejected', APPROVED: 'Approved' }
+STATUS = { PENDING: 'Pending', SUBMITTED: 'Submitted', RETURNED: 'Returned', APPROVED: 'Approved' }
 ```
 
 Authoritative copy is in `server/schema.ts`. The frontend `STATUS` is empty
@@ -238,14 +238,22 @@ State transitions:
 
 ```
 PENDING ─[applyTask, +submitReward]─▶ SUBMITTED ─[approveTask, +completeReward]─▶ APPROVED
-                                         │
-                                         └─[rejectTask]─▶ REJECTED
-                                                            │
-                                                            └─[applyTask, no submit reward]─▶ SUBMITTED
+   ▲                                     │
+   │                                     ├─[rejectTask]─▶ RETURNED
+   │                                     │                    │
+   │                                     │                    └─[applyTask, no submit reward]─▶ SUBMITTED
+   │                                     │
+   └─[withdrawTask, -submitReward]───────┘   (child cancels their own submission)
 ```
 
 Approved is terminal. Rejecting an already-approved task is forbidden (avoids
-double payout).
+double payout). Withdrawal is the *child's* counterpart to reject: it's only
+valid from `SUBMITTED` and lands back in `PENDING` with a compensating history
+row (`-submitReward`, or `0` if none was paid). Re-submitting after a withdraw
+therefore pays the submit reward again — the +/- entries cancel out, so the
+balance stays consistent regardless of how many times the child toggles.
+Returned (parent-driven) and withdrawn (child-driven) intentionally land in
+*different* states so the spreadsheet timeline stays distinguishable.
 
 ## Web Push
 
@@ -348,7 +356,7 @@ columns in whatever language they prefer without affecting behaviour.
   else to the static `ASSETS` binding. Catches `HttpError` and converts to JSON.
 - `actions.ts` — `ACTIONS` table and the handlers
   (`getConfig`, `getData`, `verifyPin`, `applyTask`, `approveTask`,
-  `rejectTask`, `cashout`, `subscribePush`, `unsubscribePush`).
+  `rejectTask`, `withdrawTask`, `cashout`, `subscribePush`, `unsubscribePush`).
 - `api.ts` — Sheets API + JWT-based access token issuance via Web Crypto
   (`crypto.subtle.sign` with RS256). Also `casTaskStatus` (the optimistic-lock
   primitive) and the row shaping for the frontend.
