@@ -22,8 +22,8 @@ window.LESSERPAY_STRINGS = {
   },
 
   balance: {
-    label: '現在のポイント',
-    unit: 'pt'
+    label: '現在のレッサーポイント',
+    unit: 'lsp'
   },
 
   tasks: {
@@ -39,16 +39,16 @@ window.LESSERPAY_STRINGS = {
     appliedBadge: '申請中',
     approvedBadge: '✓ 承認',
     confirmApply: '完了したことを報告しますか?',
-    confirmApprove: 'この課題を承認してポイントを付与しますか?',
+    confirmApprove: 'この課題を承認してレッサーポイントを付与しますか?',
     confirmReject: 'この課題を訂正依頼します。よろしいですか?',
     toastApplied: '🎉 報告しました!承認をまってね',
     toastApproved: '✓ 承認しました',
     toastRejected: '訂正依頼しました',
     expiryLabel: '期限: {date}',
     pendingCount: '{n}件 申請中',
-    rewardSubmitOnly: '提出 {submit} pt',
-    rewardCompleteOnly: '完了 {complete} pt',
-    rewardBoth: '提出 {submit} & 完了 {complete} pt'
+    rewardSubmitOnly: '提出 {submit} lsp',
+    rewardCompleteOnly: '完了 {complete} lsp',
+    rewardBoth: '提出 {submit} & 完了 {complete} lsp'
   },
 
   history: {
@@ -67,17 +67,17 @@ window.LESSERPAY_STRINGS = {
   },
 
   cashout: {
-    button: '💸 ポイントを使う',
-    title: 'ポイントを使う',
-    desc: '使うポイント数を入力してください',
+    button: '💸 レッサーポイントを使う',
+    title: 'レッサーポイントを使う',
+    desc: '使うレッサーポイントを入力してください',
     submit: '使う',
     processing: '処理中…',
     cancel: 'キャンセル',
     invalid: '正しい数値を入力してください',
-    insufficient: '残高不足です (現在 {total} pt)',
-    confirm: '{amount} pt を使います。よろしいですか?',
-    toast: '💸 {amount} pt を使いました',
-    balance: '現在: {total} pt'
+    insufficient: '残高不足です (現在 {total} lsp)',
+    confirm: '{amount} lsp を使います。よろしいですか?',
+    toast: '💸 {amount} lsp を使いました',
+    balance: '現在: {total} lsp'
   },
 
   setup: {

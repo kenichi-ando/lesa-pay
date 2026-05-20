@@ -56,7 +56,7 @@ export const HISTORY_LAST_COL_LETTER = colLetter(HISTORY_COL_COUNT);
 export const HISTORY_LABEL = {
 	SUBMIT_PREFIX: "📩 ",
 	APPROVE_PREFIX: "✅ ",
-	CASHOUT: "💸 ポイント消費",
+	CASHOUT: "💸 レッサーポイント消費",
 } as const;
 
 // Column index (1-based) → column letter (A, B, ..., Z, AA, ...).
