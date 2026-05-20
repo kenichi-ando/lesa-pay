@@ -107,7 +107,7 @@
     function renderTasks() {
       const status = getStatus();
       if (state.loading && state.tasks.length === 0) {
-        els.tasksList.innerHTML = '<div class="empty-state">' + escapeHtml(tr('tasks.loading')) + '</div>';
+        els.tasksList.innerHTML = '<div class="empty-state is-loading">' + escapeHtml(tr('tasks.loading')) + '</div>';
         return;
       }
       const visible = state.tasks.filter(function (t) { return t.status !== status.APPROVED; });
@@ -147,7 +147,7 @@
 
     function renderHistory() {
       if (state.loading && state.history.length === 0) {
-        els.historyList.innerHTML = '<div class="empty-state">' + escapeHtml(tr('history.loading')) + '</div>';
+        els.historyList.innerHTML = '<div class="empty-state is-loading">' + escapeHtml(tr('history.loading')) + '</div>';
         return;
       }
       if (state.history.length === 0) {

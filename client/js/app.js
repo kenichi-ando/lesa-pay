@@ -27,7 +27,7 @@
     pushConfig: { enabled: false, publicKey: '' },
     tasks: [],
     history: [],
-    loading: false,
+    loading: true,
     booted: false,
     activeTab: 'tasks'
   };
