@@ -23,7 +23,7 @@ window.LESSERPAY_STRINGS = {
 
   balance: {
     label: '現在のレッサーポイント',
-    unit: 'lsp'
+    unit: 'pt'
   },
 
   tasks: {
@@ -46,9 +46,9 @@ window.LESSERPAY_STRINGS = {
     toastRejected: '訂正依頼しました',
     expiryLabel: '期限: {date}',
     pendingCount: '{n}件 申請中',
-    rewardSubmitOnly: '提出 {submit} lsp',
-    rewardCompleteOnly: '完了 {complete} lsp',
-    rewardBoth: '提出 {submit} & 完了 {complete} lsp'
+    rewardSubmitOnly: '提出 {submit} pt',
+    rewardCompleteOnly: '完了 {complete} pt',
+    rewardBoth: '提出 {submit} & 完了 {complete} pt'
   },
 
   history: {
@@ -74,10 +74,10 @@ window.LESSERPAY_STRINGS = {
     processing: '処理中…',
     cancel: 'キャンセル',
     invalid: '正しい数値を入力してください',
-    insufficient: '残高不足です (現在 {total} lsp)',
-    confirm: '{amount} lsp を使います。よろしいですか?',
-    toast: '💸 {amount} lsp を使いました',
-    balance: '現在: {total} lsp'
+    insufficient: '残高不足です (現在 {total} pt)',
+    confirm: '{amount} pt を使います。よろしいですか?',
+    toast: '💸 {amount} pt を使いました',
+    balance: '現在: {total} pt'
   },
 
   setup: {

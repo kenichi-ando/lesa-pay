@@ -1108,7 +1108,7 @@ body {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   border: 3px solid rgba(255, 255, 255, 0.3);
   animation: toast-in 0.3s ease;
-  /* Pill shape used to clip short messages like "💸 80 lsp を使いました" mid-word.
+  /* Pill shape used to clip short messages like "💸 80 pt を使いました" mid-word.
    * Allow the toast to grow up to almost the full viewport so 1-line messages
    * stay 1-line and only truly long ones wrap. */
   max-width: calc(100vw - 24px);
