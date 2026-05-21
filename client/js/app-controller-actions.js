@@ -207,11 +207,56 @@
       }
     }
 
+    function openBonusModal() {
+      els.bonusLabel.value = '';
+      els.bonusAmount.value = '';
+      els.bonusError.classList.add('hidden');
+      els.bonusModal.classList.remove('hidden');
+      setTimeout(function () { els.bonusLabel.focus(); }, 50);
+    }
+
+    async function submitBonus() {
+      const label = (els.bonusLabel.value || '').trim();
+      const amount = parseInt(els.bonusAmount.value, 10);
+      if (!label) {
+        els.bonusError.textContent = tr('bonus.invalidLabel');
+        els.bonusError.classList.remove('hidden');
+        return;
+      }
+      if (!amount || amount <= 0) {
+        els.bonusError.textContent = tr('bonus.invalidAmount');
+        els.bonusError.classList.remove('hidden');
+        return;
+      }
+      if (!confirm(tr('bonus.confirm', { label: label, amount: amount }))) return;
+      els.bonusSubmit.disabled = true;
+      els.bonusSubmit.textContent = tr('bonus.processing');
+      try {
+        await deps.api('grantBonus', { label: label, amount: amount, pin: state.parentPin });
+        els.bonusModal.classList.add('hidden');
+        sound.play('approve');
+        confettiBurst(document.querySelector('.balance-number'));
+        cheerLogo();
+        popBalance();
+        toast(tr('bonus.toast', { amount: amount }), 'success');
+        deps.clearDataCache();
+        await deps.loadData(true);
+      } catch (err) {
+        els.bonusError.textContent = err.message;
+        els.bonusError.classList.remove('hidden');
+      } finally {
+        els.bonusSubmit.disabled = false;
+        els.bonusSubmit.textContent = tr('bonus.submit');
+      }
+    }
+
     return {
       toast: toast,
       onTaskAction: onTaskAction,
       openCashoutModal: openCashoutModal,
-      submitCashout: submitCashout
+      submitCashout: submitCashout,
+      openBonusModal: openBonusModal,
+      submitBonus: submitBonus
     };
   }
 

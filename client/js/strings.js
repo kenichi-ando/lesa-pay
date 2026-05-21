@@ -40,7 +40,7 @@ window.LESSERPAY_STRINGS = {
     approvedBadge: '✓ 承認',
     withdraw: '取り下げ',
     confirmApply: '完了したことを報告しますか?',
-    confirmApprove: 'この課題を承認してレッサーポイントを付与しますか?',
+    confirmApprove: 'この課題を承認してポイントを付与しますか?',
     confirmReject: 'この課題を訂正依頼します。よろしいですか?',
     confirmWithdraw: '申請を取り下げます。提出ポイントも戻ります。よろしいですか?',
     toastApplied: '🎉 報告しました!承認をまってね',
@@ -70,9 +70,9 @@ window.LESSERPAY_STRINGS = {
   },
 
   cashout: {
-    button: '💸 レッサーポイントを使う',
-    title: 'レッサーポイントを使う',
-    desc: '使うレッサーポイントを入力してください',
+    button: '💸 ポイント消費',
+    title: 'ポイント消費',
+    desc: '使うポイントを入力してください',
     submit: '使う',
     processing: '処理中…',
     cancel: 'キャンセル',
@@ -81,6 +81,21 @@ window.LESSERPAY_STRINGS = {
     confirm: '{amount} pt を使います。よろしいですか?',
     toast: '💸 {amount} pt を使いました',
     balance: '現在: {total} pt'
+  },
+
+  bonus: {
+    button: '🎁 ボーナス付与',
+    title: 'ボーナス付与',
+    desc: '理由とポイントを入力してください',
+    labelPlaceholder: '例: テストの結果がよかった',
+    pointsPlaceholder: '100pt',
+    submit: '付与',
+    processing: '処理中…',
+    cancel: 'キャンセル',
+    invalidLabel: '理由を入力してください',
+    invalidAmount: '正しい数値を入力してください',
+    confirm: '「{label}」に {amount} pt を付与します。よろしいですか?',
+    toast: '🎁 {amount} pt を付与しました'
   },
 
   setup: {

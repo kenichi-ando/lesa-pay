@@ -192,7 +192,7 @@ automatically.
 | Index | Key       | Notes |
 | ----: | --------- | ----- |
 | 0     | `DATE`    | `yyyy/MM/dd HH:mm` |
-| 1     | `CONTENT` | Free-form, emoji-prefixed string set by the Worker. Format is `"<emoji> <category> <title>"` for task events (e.g. `"✅ Chores Wash dishes"`, `"📩 Study Spelling drill"`, `"↩️ Study Spelling drill"` for withdrawals) and `HISTORY_LABEL.CASHOUT` for cashouts. The catalogue of prefixes lives in `schema.ts` `HISTORY_LABEL`. |
+| 1     | `CONTENT` | Free-form, emoji-prefixed string set by the Worker. Format is `"<emoji> <category> <title>"` for task events (e.g. `"✅ Chores Wash dishes"`, `"📩 Study Spelling drill"`, `"↩️ Study Spelling drill"` for withdrawals), `HISTORY_LABEL.CASHOUT` for cashouts, and `"🎁 <free-form label>"` for parent-granted bonuses (no associated task row). The catalogue of prefixes lives in `schema.ts` `HISTORY_LABEL`. |
 | 2     | `POINTS`  | Positive (reward) or negative (cashout) |
 
 ### Runtime config (wrangler secrets)
@@ -356,7 +356,10 @@ columns in whatever language they prefer without affecting behaviour.
   else to the static `ASSETS` binding. Catches `HttpError` and converts to JSON.
 - `actions.ts` — `ACTIONS` table and the handlers
   (`getConfig`, `getData`, `verifyPin`, `applyTask`, `approveTask`,
-  `rejectTask`, `withdrawTask`, `cashout`, `subscribePush`, `unsubscribePush`).
+  `rejectTask`, `withdrawTask`, `cashout`, `grantBonus`, `subscribePush`, `unsubscribePush`).
+  `grantBonus` is parent-only (PIN-protected) and writes a single `🎁 <label>`
+  history row without going through the task approval flow — there is no
+  `Tasks_` row for bonuses.
 - `api.ts` — Sheets API + JWT-based access token issuance via Web Crypto
   (`crypto.subtle.sign` with RS256). Also `casTaskStatus` (the optimistic-lock
   primitive) and the row shaping for the frontend.
@@ -387,7 +390,7 @@ columns in whatever language they prefer without affecting behaviour.
 - `app-controller-data.js` — API wrapper (`api()`), boot flow (`bootstrap()`),
   config refresh, cache-aware `loadData()`, and locked-screen rendering.
 - `app-controller-actions.js` — mutation-side UI actions (`apply/approve/reject`,
-  `cashout`) plus `toast()`.
+  `cashout`, `grantBonus`) plus `toast()`.
 - `app-controller.js` — orchestration for user selection popover, parent-login
   modal flow, parent-mode-aware user switching, and coordination across the
   data/actions modules.
@@ -500,8 +503,8 @@ because the Service Account itself owns its delegation.
     device's stored token starts returning 401, the SPA falls back to the
     locked screen, and family members must re-redeem with the (possibly new)
     invitation code.
-- `approveTask` / `rejectTask` / `cashout` additionally require `PARENT_PIN`
-  verified by the Worker (`checkPin`, constant-time compare).
+- `approveTask` / `rejectTask` / `cashout` / `grantBonus` additionally require
+  `PARENT_PIN` verified by the Worker (`checkPin`, constant-time compare).
 - The frontend stores the verified PIN in `localStorage` after a
   successful login. This effectively turns the device into a "parent device"
   for parent-mode auto-login on subsequent visits.

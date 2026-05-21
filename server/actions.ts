@@ -76,6 +76,11 @@ export const ACTIONS: Record<string, ActionDef> = {
 		handler: async (req, env) =>
 			handleCashout(env, req.user as string, req.amount, req.pin),
 	},
+	grantBonus: {
+		requireUser: true,
+		handler: async (req, env) =>
+			handleGrantBonus(env, req.user as string, req.label, req.amount, req.pin),
+	},
 	subscribePush: {
 		requireUser: true,
 		handler: async (req, env) =>
@@ -262,7 +267,52 @@ async function handleCashout(
 		env,
 		fmt(MSG.notifySubjectCashout, { user: displayName }),
 		fmt(MSG.notifyCashoutBody, { user: displayName, amount: amt, balance }),
-		"parent",
+		"child",
+	);
+
+	return { amount: amt, balance };
+}
+
+async function handleGrantBonus(
+	env: Env,
+	user: string,
+	labelRaw: unknown,
+	amount: unknown,
+	pin: unknown,
+) {
+	checkPin(env, pin);
+	const amt = Number(amount);
+	if (!Number.isFinite(amt) || amt <= 0) throw new HttpError(400, MSG.errInvalidAmount);
+	const label = String(labelRaw ?? "").trim();
+	if (!label) throw new HttpError(400, MSG.errBonusLabelMissing);
+	const maxLabelLen = 80;
+	if (label.length > maxLabelLen) {
+		throw new HttpError(400, fmt(MSG.errBonusLabelTooLong, { max: maxLabelLen }));
+	}
+
+	const token = await getAccessToken(env);
+	const historySheet = SHEET_PREFIX.HISTORY + user;
+
+	// Bonus posts directly to history; no Tasks_ row, no approval flow. Compute
+	// the post-grant balance for the parent notification using the same
+	// read-then-append pattern as cashout (race window is acceptable for
+	// family-scale traffic).
+	const rows = await readHistoryRows(env, token, historySheet);
+	const total = rows.reduce((s, h) => s + (toNumber(h.points) || 0), 0);
+	await appendHistoryRow(env, token, historySheet, [
+		formatDateTime(new Date()),
+		HISTORY_LABEL.BONUS_PREFIX + label,
+		amt,
+	]);
+	const balance = total + amt;
+
+	const cfg = fetchConfig(env);
+	const displayName = labelFor(cfg.users, user);
+	await notify(
+		env,
+		fmt(MSG.notifySubjectBonus, { user: displayName }),
+		fmt(MSG.notifyBonusBody, { user: displayName, label, amount: amt, balance }),
+		"child",
 	);
 
 	return { amount: amt, balance };

@@ -938,12 +938,20 @@ body {
   50%      { transform: translateY(-3px) rotate(4deg); }
 }
 
-/* ---------------- Balance card cashout button (parent mode only) ---------------- */
-.balance-cashout {
+/* ---------------- Balance card action buttons (parent mode only) ---------------- */
+.balance-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.balance-cashout,
+.balance-bonus {
   /* Sits directly under the points number — small, unobtrusive, only shown
    * when parent mode is on. The kid-mode card is unchanged. */
   display: inline-block;
-  margin-top: 12px;
   background: linear-gradient(135deg, #ffd96b 0%, #e8a23a 100%);
   color: white;
   border: none;
@@ -958,7 +966,12 @@ body {
   white-space: nowrap;
 }
 
-.balance-cashout:active {
+.balance-bonus {
+  background: linear-gradient(135deg, #f7a4c9 0%, #d56ea1 100%);
+}
+
+.balance-cashout:active,
+.balance-bonus:active {
   transform: scale(0.96);
 }
 

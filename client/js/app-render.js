@@ -175,6 +175,7 @@
     function render() {
       const total = state.history.reduce(function (sum, h) { return sum + (Number(h.points) || 0); }, 0);
       els.cashoutBtn.classList.toggle('hidden', !state.parentMode || total <= 0);
+      els.bonusBtn.classList.toggle('hidden', !state.parentMode);
       if (state.user && !state.needsUserSelection) {
         const key = state.parentMode ? 'header.currentParent' : 'header.currentKid';
         els.userLabel.textContent = tr(key, { name: deps.labelOf(state.user) });

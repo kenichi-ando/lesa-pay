@@ -41,6 +41,7 @@
     userSelectList: $('user-select-list'),
     userSelectCloseBtn: $('user-select-close-btn'),
     cashoutBtn: $('cashout-btn'),
+    bonusBtn: $('bonus-btn'),
     tabTasks: $('tab-tasks'),
     tabHistory: $('tab-history'),
     tabTasksBadge: $('tab-tasks-badge'),
@@ -60,6 +61,12 @@
     cashoutCancel: $('cashout-cancel-btn'),
     cashoutError: $('cashout-error'),
     cashoutBalance: $('cashout-balance'),
+    bonusModal: $('bonus-modal'),
+    bonusLabel: $('bonus-label'),
+    bonusAmount: $('bonus-amount'),
+    bonusSubmit: $('bonus-submit-btn'),
+    bonusCancel: $('bonus-cancel-btn'),
+    bonusError: $('bonus-error'),
     settingsModal: $('settings-modal'),
     settingsClose: $('settings-close-btn'),
     settingsPushRow: $('settings-push-row'),
@@ -122,6 +129,10 @@
     els.cashoutSubmit.addEventListener('click', controller.submitCashout);
     els.cashoutCancel.addEventListener('click', function () { els.cashoutModal.classList.add('hidden'); });
 
+    els.bonusBtn.addEventListener('click', controller.openBonusModal);
+    els.bonusSubmit.addEventListener('click', controller.submitBonus);
+    els.bonusCancel.addEventListener('click', function () { els.bonusModal.classList.add('hidden'); });
+
     els.tabTasks.addEventListener('click', function () { switchTab('tasks'); });
     els.tabHistory.addEventListener('click', function () { switchTab('history'); });
 
@@ -136,7 +147,7 @@
       }
     });
 
-    [els.parentModal, els.cashoutModal, els.settingsModal].forEach(function (m) {
+    [els.parentModal, els.cashoutModal, els.bonusModal, els.settingsModal].forEach(function (m) {
       m.addEventListener('click', function (e) {
         if (e.target !== m) return;
         if (m === els.parentModal) controller.closeParentModal();
@@ -236,6 +247,7 @@
       // Skip if a modal/user-select is open
       if (!els.parentModal.classList.contains('hidden')) return;
       if (!els.cashoutModal.classList.contains('hidden')) return;
+      if (!els.bonusModal.classList.contains('hidden')) return;
       if (!els.settingsModal.classList.contains('hidden')) return;
       if (!els.userSelectScreen.classList.contains('hidden')) return;
       startY = e.touches[0].clientY;

@@ -63,7 +63,8 @@ export const HISTORY_LABEL = {
 	SUBMIT_PREFIX: "📩 ",
 	APPROVE_PREFIX: "✅ ",
 	WITHDRAW_PREFIX: "↩️ ",
-	CASHOUT: "💸 レッサーポイント消費",
+	BONUS_PREFIX: "🎁 ",
+	CASHOUT: "💸 ポイント消費",
 } as const;
 
 // Column index (1-based) → column letter (A, B, ..., Z, AA, ...).

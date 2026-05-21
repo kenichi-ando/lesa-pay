@@ -64,7 +64,10 @@
           <span class="balance-unit" data-i18n="balance.unit"></span>
         </span>
       </div>
-      <button id="cashout-btn" class="balance-cashout hidden" type="button" data-i18n="cashout.button"></button>
+      <div class="balance-actions">
+        <button id="bonus-btn" class="balance-bonus hidden" type="button" data-i18n="bonus.button"></button>
+        <button id="cashout-btn" class="balance-cashout hidden" type="button" data-i18n="cashout.button"></button>
+      </div>
     </section>
 
     <section class="content-section">
@@ -146,6 +149,21 @@
         <button id="cashout-submit-btn" class="btn btn-primary" data-i18n="cashout.submit"></button>
       </div>
       <div id="cashout-error" class="modal-error hidden"></div>
+    </div>
+  </div>
+
+  <div id="bonus-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-content">
+      <svg class="modal-mascot" width="64" height="64"><use href="#lesser-panda"/></svg>
+      <h3 class="modal-title" data-i18n="bonus.title"></h3>
+      <p class="modal-desc" data-i18n="bonus.desc"></p>
+      <input type="text" id="bonus-label" class="modal-input" maxlength="80" data-i18n-attr-placeholder="bonus.labelPlaceholder" autocomplete="off" />
+      <input type="number" id="bonus-amount" class="modal-input" inputmode="numeric" min="1" data-i18n-attr-placeholder="bonus.pointsPlaceholder" />
+      <div class="modal-actions">
+        <button id="bonus-cancel-btn" class="btn btn-secondary" data-i18n="bonus.cancel"></button>
+        <button id="bonus-submit-btn" class="btn btn-primary" data-i18n="bonus.submit"></button>
+      </div>
+      <div id="bonus-error" class="modal-error hidden"></div>
     </div>
   </div>
 

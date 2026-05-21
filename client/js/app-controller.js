@@ -316,6 +316,8 @@
       closeParentModal: closeParentModal,
       openCashoutModal: actions.openCashoutModal,
       submitCashout: actions.submitCashout,
+      openBonusModal: actions.openBonusModal,
+      submitBonus: actions.submitBonus,
       loadData: data.loadData,
       bootstrap: data.bootstrap,
       onTaskAction: actions.onTaskAction,
