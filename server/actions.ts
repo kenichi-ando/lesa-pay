@@ -16,7 +16,7 @@ import {
 	readHistoryRows,
 	readUserData,
 } from "./api";
-import { checkPin, fetchConfig, labelFor } from "./config";
+import { DEBUG_USER_KEY, checkPin, fetchConfig, labelFor } from "./config";
 import { notify } from "./notify";
 import {
 	getPushPublicKey,
@@ -163,18 +163,21 @@ async function handleApplyTask(env: Env, user: string, taskId: string) {
 	await casTaskStatus(env, token, tasksSheet, rowIndex, currentStatus, STATUS.SUBMITTED);
 
 	// Notification — best effort; never break the user flow.
+	// Debug user submissions are silent so they don't disturb real parent devices.
 	const cfg = fetchConfig(env);
 	const displayName = labelFor(cfg.users, user);
-	await notify(
-		env,
-		fmt(MSG.notifySubjectApply, { user: displayName }),
-		buildApplyNotifyBody(displayName, {
-			taskLabel,
-			completeReward,
-			submitReward: isFirstSubmit ? submitReward : 0,
-		}),
-		"parent",
-	);
+	if (user !== DEBUG_USER_KEY) {
+		await notify(
+			env,
+			fmt(MSG.notifySubjectApply, { user: displayName }),
+			buildApplyNotifyBody(displayName, {
+				taskLabel,
+				completeReward,
+				submitReward: isFirstSubmit ? submitReward : 0,
+			}),
+			"parent",
+		);
+	}
 
 	return { taskId };
 }

@@ -29,5 +29,10 @@ export interface Env {
 	// Optional: contact URL in VAPID JWT `sub` claim.
 	// Example: "mailto:you@example.com"
 	PUSH_SUBJECT?: string;
+	// Optional: when truthy, appends a "Debug User" to the USERS roster and
+	// suppresses parent-targeted push notifications for that user. Lets you
+	// exercise the app without touching real children's data or notifying the
+	// parent device(s). "0" / "false" / "no" / "off" / "" / unset → off.
+	DEBUG?: string;
 	ASSETS: Fetcher;
 }
