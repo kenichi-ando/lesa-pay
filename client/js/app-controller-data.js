@@ -215,6 +215,36 @@
       dataCache = null;
     }
 
+    // Detect kid-side approvals by diffing against a per-user snapshot of
+    // "tasks that were Submitted at the last load", persisted in localStorage
+    // so it survives app close/reopen — which is the whole reason we need
+    // this: the parent typically approves while the kid isn't looking.
+    function detectNewlyApproved(nextTasks) {
+      if (state.parentMode || !state.user) return [];
+      const status = (deps.getStatus && deps.getStatus()) || {};
+      const prevSubmitted = new Set(store.getSubmittedSnapshot(state.user));
+      const ids = [];
+      nextTasks.forEach(function (t) {
+        if (t.status === status.APPROVED && prevSubmitted.has(t.id)) ids.push(t.id);
+      });
+      return ids;
+    }
+
+    function persistSubmittedSnapshot(tasks) {
+      if (!state.user) return;
+      // The snapshot is the kid's view of "what's still awaiting approval."
+      // Parent-mode loads run against the kid's same state.user, so writing
+      // here would wipe the kid's snapshot the moment the parent approves on
+      // the same device — and the kid would miss the celebration on next
+      // load. Skip in parent mode; the kid's next loadData will rewrite it.
+      if (state.parentMode) return;
+      const status = (deps.getStatus && deps.getStatus()) || {};
+      const ids = tasks
+        .filter(function (t) { return t.status === status.SUBMITTED; })
+        .map(function (t) { return t.id; });
+      store.setSubmittedSnapshot(state.user, ids);
+    }
+
     async function refreshServerConfig() {
       const res = await api('getConfig');
       if (res && res.status) setStatus(res.status);
@@ -409,10 +439,17 @@
       runtime.render();
       try {
         const data = await api('getData');
-        state.tasks = data.tasks || [];
+        const nextTasks = data.tasks || [];
+        const approvedIds = detectNewlyApproved(nextTasks);
+        state.tasks = nextTasks;
         state.history = data.history || [];
         dataCache = { ts: now, tasks: state.tasks, history: state.history };
+        persistSubmittedSnapshot(nextTasks);
         await refreshPushSubscriptionRole();
+        if (approvedIds.length > 0 && deps.onTasksApproved) {
+          // Defer until after render so the balance/logo elements are in the DOM.
+          setTimeout(function () { deps.onTasksApproved(approvedIds); }, 0);
+        }
       } catch (err) {
         if (err instanceof UnauthorizedError) {
           renderLocked();

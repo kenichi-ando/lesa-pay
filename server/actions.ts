@@ -217,8 +217,15 @@ async function handleApproveTask(env: Env, user: string, taskId: string, pin: un
 
 	const category = String(row[TASK_COL.CATEGORY] ?? "");
 	const title = String(row[TASK_COL.TITLE] ?? "");
+	const taskLabel = composeTaskLabel(category, title);
 	const points = toNumber(row[TASK_COL.COMPLETE_REWARD]);
-	const content = HISTORY_LABEL.APPROVE_PREFIX + composeTaskLabel(category, title);
+	const content = HISTORY_LABEL.APPROVE_PREFIX + taskLabel;
+
+	// Read pre-approval balance for the notification body. Same read-then-append
+	// pattern as cashout/grantBonus; the race window is acceptable for
+	// family-scale traffic.
+	const rows = await readHistoryRows(env, token, historySheet);
+	const total = rows.reduce((s, h) => s + (toNumber(h.points) || 0), 0);
 
 	// Append history first, then flip status. A partial failure that stops
 	// after the history append leaves the task still SUBMITTED (visible to the
@@ -230,6 +237,16 @@ async function handleApproveTask(env: Env, user: string, taskId: string, pin: un
 		points,
 	]);
 	await casTaskStatus(env, token, tasksSheet, rowIndex, currentStatus, STATUS.APPROVED);
+	const balance = total + points;
+
+	const cfg = fetchConfig(env);
+	const displayName = labelFor(cfg.users, user);
+	await notify(
+		env,
+		fmt(MSG.notifySubjectApprove, { user: displayName }),
+		fmt(MSG.notifyApproveBody, { user: displayName, label: taskLabel, pt: points, balance }),
+		"child",
+	);
 
 	return { taskId, points };
 }

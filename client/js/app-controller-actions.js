@@ -250,13 +250,26 @@
       }
     }
 
+    // Fired when loadData detects tasks that flipped Submitted → Approved
+    // remotely (i.e. parent approved while the kid's app was elsewhere).
+    // Mirrors the local 'approve' button celebration, anchored on the balance
+    // since the task row has already been removed from the list.
+    function celebrateRemoteApprovals() {
+      sound.play('approve');
+      confettiBurst(document.querySelector('.balance-number'));
+      cheerLogo();
+      popBalance();
+      toast(tr('tasks.toastApproved'), 'success');
+    }
+
     return {
       toast: toast,
       onTaskAction: onTaskAction,
       openCashoutModal: openCashoutModal,
       submitCashout: submitCashout,
       openBonusModal: openBonusModal,
-      submitBonus: submitBonus
+      submitBonus: submitBonus,
+      celebrateRemoteApprovals: celebrateRemoteApprovals
     };
   }
 

@@ -23,6 +23,7 @@ export const MSG = {
 	errBonusLabelTooLong: "タイトルは {max} 文字以内で入力してください",
 
 	notifySubjectApply: "{user}から完了報告",
+	notifySubjectApprove: "{user}の課題が承認されました",
 	notifySubjectReject: "{user}の課題に訂正依頼",
 	notifySubjectCashout: "{user}のポイント消費",
 	notifySubjectBonus: "{user}にボーナス付与",
@@ -31,6 +32,7 @@ export const MSG = {
 	notifyApplyBodySubmit: "提出報酬: {pt} pt (付与済み)",
 	notifyApplyBodyComplete: "完了報酬: {pt} pt (承認後に付与)",
 	notifyApplyBodyFooter: "アプリで承認してください。",
+	notifyApproveBody: "{user} の「{label}」が承認されました。\n獲得: {pt} pt\n残高: {balance} pt",
 	notifyRejectBody: "{user} の「{label}」が訂正依頼になりました。内容を見直して再提出してください。",
 	notifyCashoutBody: "{user} が {amount} pt を使いました。\n残高: {balance} pt",
 } as const;

@@ -21,7 +21,13 @@
       clearApiToken: function () { localStorage.removeItem(sk.apiToken); },
       getPushPromptDismissed: function () { return localStorage.getItem(sk.pushPromptDismissed) === '1'; },
       setPushPromptDismissed: function () { localStorage.setItem(sk.pushPromptDismissed, '1'); },
-      clearPushPromptDismissed: function () { localStorage.removeItem(sk.pushPromptDismissed); }
+      clearPushPromptDismissed: function () { localStorage.removeItem(sk.pushPromptDismissed); },
+      getSubmittedSnapshot: function (user) {
+        return JSON.parse(localStorage.getItem(sk.submittedSnapshot + '_' + user) || '[]');
+      },
+      setSubmittedSnapshot: function (user, ids) {
+        localStorage.setItem(sk.submittedSnapshot + '_' + user, JSON.stringify(ids));
+      }
     };
   }
 

@@ -289,13 +289,15 @@
       state: state,
       tr: tr,
       runtime: runtime,
+      getStatus: deps.getStatus,
       setStatus: deps.setStatus,
       reconcileActiveUser: reconcileActiveUser,
       userKeys: userKeys,
       showUserSelection: showUserSelection,
       openParentModal: openParentModal,
       tryAutoLoginParent: tryAutoLoginParent,
-      toast: function (msg, kind) { actions.toast(msg, kind); }
+      toast: function (msg, kind) { actions.toast(msg, kind); },
+      onTasksApproved: function () { actions.celebrateRemoteApprovals(); }
     });
 
     const actions = window.LESSERPAY_CONTROLLER_ACTIONS.create({
