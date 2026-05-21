@@ -6,7 +6,11 @@
 // HTML elements use `data-i18n="key"` (replaces textContent) or
 // `data-i18n-attr-<attr>="key"` (replaces an attribute, e.g. placeholder/aria-label).
 window.LESSERPAY_STRINGS = {
-  app: { title: 'LesserPay' },
+  app: {
+    title: 'LesserPay',
+    docTitleParent: 'LesserPay (保護者)',
+    docTitleKid: 'LesserPay - {name}'
+  },
 
   header: {
     currentUser: '現在のユーザー',

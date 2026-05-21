@@ -181,13 +181,18 @@
       els.cashoutBtn.classList.toggle('hidden', !state.parentMode || !balanceReady || total <= 0);
       els.bonusBtn.classList.toggle('hidden', !state.parentMode || !balanceReady);
       if (state.user && !state.needsUserSelection) {
+        const name = deps.labelOf(state.user);
         const key = state.parentMode ? 'header.currentParent' : 'header.currentKid';
-        els.userLabel.textContent = tr(key, { name: deps.labelOf(state.user) });
+        els.userLabel.textContent = tr(key, { name: name });
         els.userLabel.classList.add('is-switchable');
         els.userLabel.classList.remove('hidden');
+        document.title = state.parentMode
+          ? tr('app.docTitleParent')
+          : tr('app.docTitleKid', { name: name });
       } else {
         els.userLabel.classList.remove('is-switchable');
         els.userLabel.classList.add('hidden');
+        document.title = tr('app.title');
       }
       renderBalance();
       renderTasks();
