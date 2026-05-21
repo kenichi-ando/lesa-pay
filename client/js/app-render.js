@@ -16,7 +16,7 @@
       const status = getStatus();
       const sub = Number(task.submitReward) || 0;
       const com = Number(task.completeReward) || Number(task.points) || 0;
-      const showSub = sub > 0 && task.status !== status.RETURNED;
+      const showSub = sub > 0 && task.status === status.PENDING;
       if (showSub && com > 0) {
         return '<span class="task-points">' + escapeHtml(tr('tasks.rewardBoth', {
           submit: sub.toLocaleString(),
