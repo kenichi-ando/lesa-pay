@@ -174,8 +174,12 @@
 
     function render() {
       const total = state.history.reduce(function (sum, h) { return sum + (Number(h.points) || 0); }, 0);
-      els.cashoutBtn.classList.toggle('hidden', !state.parentMode || total <= 0);
-      els.bonusBtn.classList.toggle('hidden', !state.parentMode);
+      // Hide both action buttons until the first data load completes — otherwise
+      // the bonus button (no balance gate) renders immediately while cashout
+      // (gated on total > 0) only appears after the network round-trip.
+      const balanceReady = !(state.loading && state.history.length === 0);
+      els.cashoutBtn.classList.toggle('hidden', !state.parentMode || !balanceReady || total <= 0);
+      els.bonusBtn.classList.toggle('hidden', !state.parentMode || !balanceReady);
       if (state.user && !state.needsUserSelection) {
         const key = state.parentMode ? 'header.currentParent' : 'header.currentKid';
         els.userLabel.textContent = tr(key, { name: deps.labelOf(state.user) });
