@@ -28,6 +28,7 @@
   --color-danger: #c44a2e;
   --color-pink: #ffb3c1;
   --color-pink-soft: #ffd1dc;
+  --color-pink-strong: #e8607a;
   --color-yellow-soft: #ffe9a8;
   --shadow-sm: 0 2px 8px rgba(138, 63, 31, 0.08);
   --shadow-md: 0 4px 16px rgba(138, 63, 31, 0.15);
@@ -631,8 +632,8 @@ body {
 }
 
 .task-item.status-approved {
-  border-left-color: var(--color-success);
-  background: linear-gradient(90deg, #f0f8e8 0%, #ffffff 30%);
+  border-left-color: var(--color-pink-strong);
+  background: linear-gradient(90deg, #ffe6ec 0%, #ffffff 30%);
   opacity: 0.78;
 }
 
@@ -785,8 +786,9 @@ body {
 }
 
 .status-approved .task-status-badge {
-  background: var(--color-success);
-  color: white;
+  background: transparent;
+  color: var(--color-pink-strong);
+  border: 1.5px solid var(--color-pink-strong);
 }
 
 /* ---------------- Subject groups ---------------- */

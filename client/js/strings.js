@@ -41,7 +41,7 @@ window.LESSERPAY_STRINGS = {
     approve: '✓ 承認',
     reject: '✏️ 訂正依頼',
     appliedBadge: '申請中',
-    approvedBadge: '✓ 承認',
+    approvedBadge: '完了済み',
     withdraw: '取り下げ',
     confirmApply: '完了したことを報告しますか?',
     confirmApprove: 'この課題を承認してポイントを付与しますか?',

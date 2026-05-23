@@ -13,10 +13,9 @@
     const onTaskAction = deps.onTaskAction;
 
     function formatRewards(task) {
-      const status = getStatus();
       const sub = Number(task.submitReward) || 0;
       const com = Number(task.completeReward) || Number(task.points) || 0;
-      const showSub = sub > 0 && task.status === status.PENDING;
+      const showSub = sub > 0;
       if (showSub && com > 0) {
         return '<span class="task-points">' + escapeHtml(tr('tasks.rewardBoth', {
           submit: sub.toLocaleString(),
@@ -110,7 +109,7 @@
         els.tasksList.innerHTML = '<div class="empty-state is-loading">' + escapeHtml(tr('tasks.loading')) + '</div>';
         return;
       }
-      const visible = state.tasks.filter(function (t) { return t.status !== status.APPROVED; });
+      const visible = state.tasks;
       if (visible.length === 0) {
         els.tasksList.innerHTML = '<div class="empty-state">' + escapeHtml(tr('tasks.empty')) + '</div>';
         return;
